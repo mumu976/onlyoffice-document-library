@@ -8,7 +8,7 @@ function invalidConfig(message) {
 function positiveInteger(name, value, fallback) {
   const parsed = Number(value ?? fallback);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    invalidConfig(`${name} must be a positive integer`);
+    invalidConfig(`${name} 必须为正整数`);
   }
   return parsed;
 }
@@ -22,20 +22,27 @@ function httpUrl(name, value) {
   try {
     url = new URL(value);
   } catch {
-    invalidConfig(`${name} must be a valid HTTP or HTTPS URL`);
+    invalidConfig(`${name} 必须为有效的 HTTP 或 HTTPS URL`);
   }
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    invalidConfig(`${name} must use the http: or https: protocol`);
+    invalidConfig(`${name} 仅支持 http: 或 https: 协议`);
   }
 
-  return withoutTrailingSlash(url.toString());
+  if (url.href.includes("?") || url.href.includes("#")) {
+    invalidConfig(`${name} 不能包含查询参数或片段`);
+  }
+
+  const pathname = withoutTrailingSlash(url.pathname);
+  url.pathname = pathname || "/";
+  const normalized = url.toString();
+  return pathname ? normalized : normalized.slice(0, -1);
 }
 
 export function loadConfig(env = process.env, cwd = process.cwd()) {
   const jwtSecret = env.JWT_SECRET;
   if (typeof jwtSecret !== "string" || jwtSecret.length < 32) {
-    invalidConfig("JWT_SECRET must contain at least 32 characters");
+    invalidConfig("JWT_SECRET 长度至少 32 个字符");
   }
 
   return {
