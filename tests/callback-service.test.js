@@ -136,6 +136,7 @@ test("status 2 downloads from the trusted origin, replaces content, then marks i
   assert.equal(fixture.fetchCalls.length, 1);
   assert.equal(fixture.fetchCalls[0].url, body.url);
   assert.equal(fixture.fetchCalls[0].init.signal instanceof AbortSignal, true);
+  assert.equal(fixture.fetchCalls[0].init.redirect, "error");
   assert.deepEqual(fixture.replacements, [
     { id: fileId, buffer: Buffer.from("saved document") },
   ]);
@@ -189,6 +190,53 @@ test("missing or invalid tokens fail closed without writing", async (t) => {
     assert.equal(serializedLogs.includes("invalid-body-token"), false);
     assert.equal(serializedLogs.includes("secret-query"), false);
   });
+});
+
+test("handle resolves with error 1 when its request argument is missing", async (t) => {
+  const cases = [
+    ["no argument", (service) => service.handle()],
+    ["undefined", (service) => service.handle(undefined)],
+    ["null", (service) => service.handle(null)],
+  ];
+
+  for (const [name, invoke] of cases) {
+    await t.test(name, async () => {
+      const fixture = createFixture();
+
+      assert.deepEqual(await invoke(fixture.service), { error: 1 });
+      assert.deepEqual(fixture.fetchCalls, []);
+      assert.deepEqual(fixture.replacements, []);
+    });
+  }
+});
+
+test("logs only a fixed status shape for unverified string and object values", async (t) => {
+  const sensitive = "token=body-secret&url?download=secret-query";
+  const statuses = [sensitive, { value: sensitive }];
+
+  for (const status of statuses) {
+    await t.test(typeof status, async () => {
+      const fixture = createFixture();
+      const body = callbackBody(status, { token: "invalid-token" });
+
+      assert.deepEqual(
+        await fixture.service.handle({ fileId, body, authorization: undefined }),
+        { error: 1 },
+      );
+      assert.equal(fixture.logEntries.length, 1);
+      assert.deepEqual(Object.keys(fixture.logEntries[0]).sort(), [
+        "event",
+        "fileId",
+        "level",
+        "message",
+        "status",
+      ]);
+      assert.equal(fixture.logEntries[0].status, "invalid");
+      assert.equal(JSON.stringify(fixture.logEntries).includes(sensitive), false);
+      assert.deepEqual(fixture.fetchCalls, []);
+      assert.deepEqual(fixture.replacements, []);
+    });
+  }
 });
 
 test("signed status, key, and URL must exactly match the callback body", async (t) => {
@@ -252,6 +300,41 @@ test("rejects a streamed body over maxFileBytes without replacing content", asyn
   const body = callbackBody(2);
 
   assert.deepEqual(await handle(fixture.service, body), { error: 1 });
+  assert.deepEqual(fixture.replacements, []);
+  assert.deepEqual(fixture.registryCalls.markInactive, []);
+});
+
+test("rejects a non-2xx download response without replacing content", async () => {
+  const fixture = createFixture({
+    fetchImpl: async () => new Response("upstream failure", { status: 502 }),
+    registry: { active: true },
+  });
+  const body = callbackBody(2);
+
+  assert.deepEqual(await handle(fixture.service, body), { error: 1 });
+  assert.deepEqual(fixture.replacements, []);
+  assert.deepEqual(fixture.registryCalls.markInactive, []);
+  assert.equal(fixture.registry.isActive(fileId), true);
+});
+
+test("rejects an oversized Content-Length without reading or replacing content", async () => {
+  let bodyAccesses = 0;
+  class TrackingResponse extends Response {
+    get body() {
+      bodyAccesses += 1;
+      return super.body;
+    }
+  }
+  const fixture = createFixture({
+    fetchImpl: async () => new TrackingResponse(Buffer.from("not read"), {
+      status: 200,
+      headers: { "content-length": String(maxFileBytes + 1) },
+    }),
+  });
+  const body = callbackBody(2);
+
+  assert.deepEqual(await handle(fixture.service, body), { error: 1 });
+  assert.equal(bodyAccesses, 0);
   assert.deepEqual(fixture.replacements, []);
   assert.deepEqual(fixture.registryCalls.markInactive, []);
 });

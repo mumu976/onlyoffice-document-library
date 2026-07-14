@@ -24,25 +24,30 @@ export class CallbackService {
     this.logger = logger;
   }
 
-  async handle({ fileId, body, authorization }) {
+  async handle(request) {
+    let fileId;
+    let status;
     try {
+      const { fileId: requestFileId, body, authorization } = request ?? {};
+      fileId = requestFileId;
+      status = body?.status;
       this.#verifyCallback(fileId, body, authorization);
 
-      if (body.status === 1) {
+      if (status === 1) {
         this.registry.markActive(fileId);
-      } else if (body.status === 4) {
+      } else if (status === 4) {
         this.registry.markInactive(fileId);
-      } else if (saveStatuses.has(body.status)) {
+      } else if (saveStatuses.has(status)) {
         await this.mutex.run(fileId, async () => {
           const buffer = await this.#download(body.url);
           await this.repository.replaceContent(fileId, buffer);
-          if (body.status === 2) this.registry.markInactive(fileId);
+          if (status === 2) this.registry.markInactive(fileId);
         });
       }
 
       return { error: 0 };
     } catch {
-      this.#logFailure(fileId, body?.status);
+      this.#logFailure(fileId, status);
       return { error: 1 };
     }
   }
@@ -105,7 +110,10 @@ export class CallbackService {
         level: "error",
         event: "onlyoffice_callback_failed",
         fileId,
-        status,
+        status:
+          Number.isInteger(status) && successfulStatuses.has(status)
+            ? status
+            : "invalid",
         message: "ONLYOFFICE callback processing failed",
       });
     } catch {
