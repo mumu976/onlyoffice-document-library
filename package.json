@@ -1,0 +1,25 @@
+{
+  "name": "onlyoffice-document-library-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "templates": "node scripts/generate-templates.mjs",
+    "test": "node --test --test-reporter=spec",
+    "test:coverage": "node --test --experimental-test-coverage"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "helmet": "8.2.0",
+    "jsonwebtoken": "9.0.3",
+    "multer": "2.2.0",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "supertest": "7.2.2",
+    "yazl": "3.3.1"
+  }
+}
