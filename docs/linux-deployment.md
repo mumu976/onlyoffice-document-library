@@ -202,6 +202,9 @@ docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
+tar -tzf "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz" >/dev/null
 
 docker compose stop
 sudo find /opt/onlyoffice-demo/storage -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
@@ -238,6 +241,9 @@ BACKUP_ID=20260714T120000Z
 test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
+tar -tzf "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz" >/dev/null
 cp compose.yaml "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml"
 docker compose config
 docker compose pull document-server
@@ -267,6 +273,10 @@ test -s "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml"
 test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
+tar -tzf "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz" >/dev/null
+tar -tzf "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz" >/dev/null
+docker compose -f "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml" config --quiet
 
 docker compose stop
 cp "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml" compose.yaml
