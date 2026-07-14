@@ -1,4 +1,6 @@
 .git
+.superpowers
+.worktrees
 node_modules
 storage
 .env
