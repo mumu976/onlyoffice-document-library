@@ -116,6 +116,9 @@ sudo systemctl enable --now docker
 不要猜测 Compose 项目前缀，也不要把卷名硬编码到 `docker run -v`。在 Document Server 正常运行时，从该容器的 `Mounts` 读取两个真实卷名，并在任何备份或恢复前拒绝空值、拒绝不存在的卷：
 
 ```bash
+set -euo pipefail
+
+cd /opt/onlyoffice-demo
 CONTAINER_ID="$(docker compose ps -q document-server)"
 test -n "$CONTAINER_ID" || { echo "document-server 未运行，无法发现卷" >&2; exit 1; }
 
@@ -135,12 +138,25 @@ docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 先执行上面的卷发现块，再在同一 shell 会话执行。三个归档共享一个 UTC `BACKUP_ID`；停服后制作归档，确保 `storage`、Data 和 Logs 属于同一时间点：
 
 ```bash
+set -euo pipefail
+
+# 若在新 shell 执行，先设置项目目录并进入该目录。
+cd /opt/onlyoffice-demo
 BACKUP_DIR=/var/backups/onlyoffice-demo
 BACKUP_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$BACKUP_DIR"
 
-docker compose stop
+CONTAINER_ID="$(docker compose ps -q document-server)"
+test -n "$CONTAINER_ID" || { echo "document-server 未运行，无法发现卷" >&2; exit 1; }
+DOCUMENT_DATA_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/onlyoffice/Data"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+DOCUMENT_LOGS_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/log/onlyoffice"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+test -n "$DOCUMENT_DATA_VOLUME" || { echo "未发现 Document Server Data 卷" >&2; exit 1; }
+test -n "$DOCUMENT_LOGS_VOLUME" || { echo "未发现 Document Server Logs 卷" >&2; exit 1; }
+docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
+docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
+
 trap 'docker compose start >/dev/null 2>&1 || true' EXIT
+docker compose stop
 docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
 docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 
@@ -168,14 +184,24 @@ echo "备份时间点：$BACKUP_ID"
 先让目标 Compose 项目的 `document-server` 运行，并重新执行卷发现块；然后在同一 shell 设置要恢复的 `BACKUP_ID`。下列步骤先验证三个归档，再停服并清空目标内容，包括隐藏文件：
 
 ```bash
+set -euo pipefail
+
+# 若在新 shell 执行，先设置项目目录并进入该目录。
+cd /opt/onlyoffice-demo
 BACKUP_DIR=/var/backups/onlyoffice-demo
 BACKUP_ID=20260714T120000Z
 
+CONTAINER_ID="$(docker compose ps -q document-server)"
+test -n "$CONTAINER_ID" || { echo "document-server 未运行，无法发现卷" >&2; exit 1; }
+DOCUMENT_DATA_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/onlyoffice/Data"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+DOCUMENT_LOGS_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/log/onlyoffice"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+test -n "$DOCUMENT_DATA_VOLUME" || { echo "未发现 Document Server Data 卷" >&2; exit 1; }
+test -n "$DOCUMENT_LOGS_VOLUME" || { echo "未发现 Document Server Logs 卷" >&2; exit 1; }
+docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
+docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
-test -n "$DOCUMENT_DATA_VOLUME" && docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
-test -n "$DOCUMENT_LOGS_VOLUME" && docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 
 docker compose stop
 sudo find /opt/onlyoffice-demo/storage -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
@@ -202,6 +228,16 @@ curl -fsS http://127.0.0.1:8080/healthcheck
 升级前先完成一次同一时间点备份并保留其 `BACKUP_ID`，再保存 Compose 文件、改为已验证的固定镜像标签（不要 `latest`）并升级：
 
 ```bash
+set -euo pipefail
+
+# 若在新 shell 执行，先设置项目目录并进入该目录。
+cd /opt/onlyoffice-demo
+BACKUP_DIR=/var/backups/onlyoffice-demo
+BACKUP_ID=20260714T120000Z
+
+test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
+test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
+test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
 cp compose.yaml "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml"
 docker compose config
 docker compose pull document-server
@@ -212,12 +248,25 @@ docker compose ps
 需要回滚时，先在仍运行的新版本容器上重新执行卷发现块，并确认 `DOCUMENT_DATA_VOLUME`、`DOCUMENT_LOGS_VOLUME` 非空。然后使用升级前同一个 `BACKUP_ID` 执行以下命令；它会恢复旧 Compose 文件以及同一时间点的 storage、Data 和 Logs：
 
 ```bash
+set -euo pipefail
+
+# 若在新 shell 执行，先设置项目目录并进入该目录。
+cd /opt/onlyoffice-demo
+BACKUP_DIR=/var/backups/onlyoffice-demo
+BACKUP_ID=20260714T120000Z
+
+CONTAINER_ID="$(docker compose ps -q document-server)"
+test -n "$CONTAINER_ID" || { echo "document-server 未运行，无法发现卷" >&2; exit 1; }
+DOCUMENT_DATA_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/onlyoffice/Data"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+DOCUMENT_LOGS_VOLUME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/log/onlyoffice"}}{{.Name}}{{end}}{{end}}' "$CONTAINER_ID")"
+test -n "$DOCUMENT_DATA_VOLUME" || { echo "未发现 Document Server Data 卷" >&2; exit 1; }
+test -n "$DOCUMENT_LOGS_VOLUME" || { echo "未发现 Document Server Logs 卷" >&2; exit 1; }
+docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
+docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 test -s "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml"
 test -s "$BACKUP_DIR/storage-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-data-${BACKUP_ID}.tar.gz"
 test -s "$BACKUP_DIR/document-logs-${BACKUP_ID}.tar.gz"
-test -n "$DOCUMENT_DATA_VOLUME" && docker volume inspect "$DOCUMENT_DATA_VOLUME" >/dev/null
-test -n "$DOCUMENT_LOGS_VOLUME" && docker volume inspect "$DOCUMENT_LOGS_VOLUME" >/dev/null
 
 docker compose stop
 cp "$BACKUP_DIR/compose-${BACKUP_ID}.before-upgrade.yaml" compose.yaml
