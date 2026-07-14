@@ -23,7 +23,7 @@ docker compose images | Tee-Object .\logs\container-versions.txt
 - [x] 下载 `.docx`，本地 Office 软件可打开。
 - [x] 保留 Word 截图或带时间验收记录。
 
-记录：`Word 证据：docs/evidence/word-editor.png`  `时间：2026-07-14T16:37Z`
+记录：`Word 证据：docs/evidence/word-editor.png、docs/evidence/file-lifecycle.txt`  `时间：2026-07-14T16:37Z`
 
 ## Excel
 
@@ -33,7 +33,7 @@ docker compose images | Tee-Object .\logs\container-versions.txt
 - [x] 下载 `.xlsx`，本地 Office 软件可打开。
 - [x] 保留 Excel 截图或带时间验收记录。
 
-记录：`Excel 证据：docs/evidence/excel-editor.png`  `时间：2026-07-14T16:37Z`
+记录：`Excel 证据：docs/evidence/excel-editor.png、docs/evidence/file-lifecycle.txt`  `时间：2026-07-14T16:37Z`
 
 ## 文件与服务
 
@@ -45,8 +45,9 @@ docker compose images | Tee-Object .\logs\container-versions.txt
 ```text
 compose ps：docs/evidence/compose-ps.txt
 npm test：docs/evidence/test-output.txt
+完整验证链：docs/evidence/verification-output.txt
 容器版本：docs/evidence/versions.txt
-删除后 storage：上传副本 UUID 目录剩余 0
+删除后 storage：docs/evidence/file-lifecycle.txt（上传副本 UUID 目录剩余 0）
 ```
 
 关闭：`docker compose down`

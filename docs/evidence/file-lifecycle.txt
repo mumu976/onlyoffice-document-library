@@ -1,0 +1,40 @@
+ONLYOFFICE 实机文件生命周期记录
+时间范围：2026-07-14T15:50Z 至 2026-07-14T16:37Z
+
+[新建 Word]
+名称：Word验收.docx
+UUID：2ab80197-3f5e-47d5-aaa7-f25f520e1578
+最终 revision：4
+最终 SHA-256：d143d60215920c87aacd06b63fbdbb230021ebc1fd2438c28dc8f223b9abf320
+验证：关闭后状态 2 callback 完成，重开后仍显示“2026年7月14日，文档保存回存验收通过。”
+截图：docs/evidence/word-editor.png
+
+[新建 Excel]
+名称：Excel验收.xlsx
+UUID：3d68d15f-358d-4448-af12-53e8d0dbdc34
+最终 revision：3
+最终 SHA-256：143276c451412446b37a2190fdd14f8f3540e94e660980b76498c3dd437ae4cc
+验证：A1=10，A2=20，A3=SUM(A1:A2)，重开后 A3=30 且公式栏显示 =SUM(A1:A2)
+截图：docs/evidence/excel-editor.png
+
+[上传后编辑与回存]
+上传可编辑Word.docx
+UUID：558af7df-7256-4bba-9b1d-6d19c9352896
+revision：1 -> 2
+保存后 SHA-256：753c071100473324eb6076dbd375034c602e8dd4f1dc445049ba96c921fb3541
+
+上传可编辑Excel.xlsx
+UUID：323b5716-eeb7-4ef9-bae3-c292a1e8d715
+revision：1 -> 2
+保存后 SHA-256：152de235da9fb547674c7922ed22243ab1ef2d7698d8e49dfb15a4d03e600d46
+
+[下载与本机打开]
+OOXML 校验：valid=true，Word=25534 bytes，Excel=8736 bytes
+Word COM：WordName=上传Word验收.docx，WordReadOnly=true
+Excel COM：ExcelName=上传Excel验收.xlsx，ExcelReadOnly=true
+
+[删除上传副本]
+DELETE /api/files/558af7df-7256-4bba-9b1d-6d19c9352896 -> HTTP 204
+DELETE /api/files/323b5716-eeb7-4ef9-bae3-c292a1e8d715 -> HTTP 204
+删除后 GET /api/files 名称：Excel验收.xlsx，Word验收.docx
+删除后上述两个 storage/<uuid> 目录剩余：0
