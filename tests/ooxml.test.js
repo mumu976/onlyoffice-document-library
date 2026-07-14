@@ -36,3 +36,28 @@ test("rejects a renamed non-OOXML buffer", async () => {
     (error) => error.code === "INVALID_OOXML",
   );
 });
+
+for (const limit of [undefined, Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+  test(`rejects invalid uncompressed byte limit ${String(limit)}`, async () => {
+    const docx = await readFile(new URL("../templates/blank.docx", import.meta.url));
+    await assert.rejects(
+      validateOoxmlBuffer(docx, "docx", limit),
+      (error) => error.code === "INVALID_OOXML_LIMIT" && error.status === 500,
+    );
+  });
+}
+
+test("rejects an archive whose expanded size exceeds a valid limit", async () => {
+  const docx = await readFile(new URL("../templates/blank.docx", import.meta.url));
+  await assert.rejects(
+    validateOoxmlBuffer(docx, "docx", 1),
+    (error) => error.code === "INVALID_OOXML",
+  );
+});
+
+test("preserves the unsupported file type error before ZIP parsing", async () => {
+  await assert.rejects(
+    validateOoxmlBuffer(Buffer.from("not a zip"), "pdf", 1024),
+    (error) => error.code === "UNSUPPORTED_FILE_TYPE",
+  );
+});

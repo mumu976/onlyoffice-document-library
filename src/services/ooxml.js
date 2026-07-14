@@ -17,6 +17,16 @@ function invalidOoxml() {
   return new AppError("INVALID_OOXML", "文件不是有效的 OOXML 文档", 400);
 }
 
+function validateMaxUncompressedBytes(maxUncompressedBytes) {
+  if (!Number.isSafeInteger(maxUncompressedBytes) || maxUncompressedBytes <= 0) {
+    throw new AppError(
+      "INVALID_OOXML_LIMIT",
+      "OOXML 解压大小上限必须是正安全整数",
+      500,
+    );
+  }
+}
+
 function expectedExtension(extension) {
   if (typeof extension !== "string") {
     throw unsupportedFileType();
@@ -67,8 +77,10 @@ export function normalizeDisplayName(displayName, extension) {
 }
 
 export async function validateOoxmlBuffer(buffer, extension, maxUncompressedBytes) {
+  const normalizedExtension = expectedExtension(extension);
+  validateMaxUncompressedBytes(maxUncompressedBytes);
+
   try {
-    const normalizedExtension = expectedExtension(extension);
     const zip = await yauzl.fromBufferPromise(buffer, {
       lazyEntries: true,
       validateEntrySizes: true,
