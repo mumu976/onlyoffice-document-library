@@ -44,21 +44,188 @@ metadata 保存 `id`、展示名、扩展名、创建/更新时间、正整数 `
 
 ## 九个 REST 端点
 
-正常 JSON 为 `{ "data": ... }`，错误为 `{ "error": { "code": "稳定错误码", "message": "中文说明" } }`。
+除二进制下载、204 删除响应和 ONLYOFFICE callback 协议外，成功 JSON 使用 `{ "data": ... }`；普通 API 错误使用 `{ "error": { "code": "稳定错误码", "message": "中文说明" } }`。以下 UUID、时间、SHA-256 和 JWT 是便于阅读的示例值。
 
-| 方法与路径 | 用途与示例 |
-| --- | --- |
-| `GET /health` | `{"data":{"status":"ok"}}` |
-| `GET /api/config` | 返回 `documentServerUrl`、`maxFileBytes`、`supportedExtensions` |
-| `GET /api/files` | 按更新时间倒序返回元数据数组 |
-| `POST /api/files` | body `{"name":"季度报告","type":"word"}`；`type` 为 `word`/`excel`，返回 201 |
-| `POST /api/files/upload` | multipart 字段名必须为 `file`，扩展名只能 `.docx`/`.xlsx`，返回 201 |
-| `GET /api/files/:id/content` | 返回当前 OOXML 二进制和安全 `Content-Disposition` |
-| `GET /api/files/:id/editor-config` | 返回带 JWT 的 Docs 配置 |
-| `DELETE /api/files/:id` | 成功 204；编辑中返回 `409 FILE_ACTIVE` |
-| `POST /api/onlyoffice/callback/:id` | 接收保存回调，始终 HTTP 200，成功 `{"error":0}`、失败 `{"error":1}` |
+### 1. `GET /health`
 
-编辑配置中 Word 的 `documentType` 为 `word`，Excel 为 `cell`；`fileType` 为 `docx`/`xlsx`；`key` 为 `${id}-${revision}`；`url` 与 `callbackUrl` 使用 `APP_INTERNAL_URL`；模式为 `edit`。
+无请求体。成功为 HTTP 200：
+
+```json
+{"data":{"status":"ok"}}
+```
+
+### 2. `GET /api/config`
+
+无请求体。成功为 HTTP 200，响应给浏览器提供公开配置：
+
+```json
+{
+  "data": {
+    "documentServerUrl": "http://localhost:8080",
+    "maxFileBytes": 20971520,
+    "supportedExtensions": ["docx", "xlsx"]
+  }
+}
+```
+
+### 3. `GET /api/files`
+
+无请求体。成功为 HTTP 200；`data` 是按 `updatedAt` 倒序排列的元数据数组：
+
+```json
+{
+  "data": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "季度报告.docx",
+      "extension": "docx",
+      "createdAt": "2026-07-14T08:00:00.000Z",
+      "updatedAt": "2026-07-14T08:00:00.000Z",
+      "revision": 1,
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ]
+}
+```
+
+空库响应是 `{"data":[]}`。
+
+### 4. `POST /api/files`
+
+请求头为 `Content-Type: application/json`。`type` 只能是 `word` 或 `spreadsheet`：
+
+```json
+{"name":"季度报告","type":"word"}
+```
+
+成功为 HTTP 201，`data` 是新文件的完整元数据：
+
+```json
+{
+  "data": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "季度报告.docx",
+    "extension": "docx",
+    "createdAt": "2026-07-14T08:00:00.000Z",
+    "updatedAt": "2026-07-14T08:00:00.000Z",
+    "revision": 1,
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}
+```
+
+创建 Excel 时使用 `{"name":"预算","type":"spreadsheet"}`，响应的 `name`/`extension` 分别为 `预算.xlsx`/`xlsx`。不支持的类型返回 HTTP 400：
+
+```json
+{"error":{"code":"UNSUPPORTED_FILE_TYPE","message":"仅支持 .docx 和 .xlsx 文件"}}
+```
+
+### 5. `POST /api/files/upload`
+
+请求是 `multipart/form-data`，且唯一文件字段必须名为 `file`；支持 `.docx`/`.xlsx`，MIME 必须匹配扩展名或为 `application/octet-stream`，随后仍会校验 OOXML 结构。等价 Linux 请求：
+
+```bash
+curl -X POST http://localhost:3000/api/files/upload -F 'file=@./samples/预算.xlsx'
+```
+
+成功为 HTTP 201，envelope 与创建端点相同，例如：
+
+```json
+{
+  "data": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "预算.xlsx",
+    "extension": "xlsx",
+    "createdAt": "2026-07-14T08:05:00.000Z",
+    "updatedAt": "2026-07-14T08:05:00.000Z",
+    "revision": 1,
+    "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+  }
+}
+```
+
+缺少 `file` 时返回 HTTP 400：
+
+```json
+{"error":{"code":"FILE_REQUIRED","message":"请选择要上传的文件"}}
+```
+
+### 6. `GET /api/files/:id/content`
+
+无请求体。成功为 HTTP 200，响应不是 JSON envelope，而是当前 `.docx`/`.xlsx` 二进制；`Content-Type` 使用对应 OOXML MIME，`Content-Disposition` 同时包含安全回退文件名与 UTF-8 展示名，例如：
+
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+Content-Disposition: attachment; filename="download.docx"; filename*=UTF-8''%E5%AD%A3%E5%BA%A6%E6%8A%A5%E5%91%8A.docx
+```
+
+文件不存在时返回 HTTP 404 JSON：
+
+```json
+{"error":{"code":"FILE_NOT_FOUND","message":"文件不存在"}}
+```
+
+### 7. `GET /api/files/:id/editor-config`
+
+无请求体。成功为 HTTP 200；Word 的 `documentType` 为 `word`，Excel 为 `cell`，`key` 为 `${id}-${revision}`，内部文件 URL 和 callback URL 使用 `APP_INTERNAL_URL`：
+
+```json
+{
+  "data": {
+    "type": "desktop",
+    "width": "100%",
+    "height": "100%",
+    "documentType": "word",
+    "document": {
+      "fileType": "docx",
+      "key": "11111111-1111-4111-8111-111111111111-1",
+      "title": "季度报告.docx",
+      "url": "http://app:3000/api/files/11111111-1111-4111-8111-111111111111/content",
+      "permissions": {"edit":true,"download":true,"print":true}
+    },
+    "editorConfig": {
+      "callbackUrl": "http://app:3000/api/onlyoffice/callback/11111111-1111-4111-8111-111111111111",
+      "lang": "zh-CN",
+      "mode": "edit",
+      "user": {"id":"demo-user","name":"演示用户"},
+      "customization": {"forcesave":true}
+    },
+    "token": "eyJhbGciOiJIUzI1NiJ9.example-signature"
+  }
+}
+```
+
+### 8. `DELETE /api/files/:id`
+
+无请求体。成功为 HTTP 204 且响应体为空，不使用 JSON envelope。编辑中的文件返回 HTTP 409：
+
+```json
+{"error":{"code":"FILE_ACTIVE","message":"文件正在编辑，无法删除"}}
+```
+
+### 9. `POST /api/onlyoffice/callback/:id`
+
+请求头优先使用 `Authorization: Bearer <CALLBACK_JWT>`，也兼容 body `token`。状态 1 示例：
+
+```json
+{
+  "status": 1,
+  "key": "11111111-1111-4111-8111-111111111111-1",
+  "token": "eyJhbGciOiJIUzI1NiJ9.example-signature"
+}
+```
+
+状态 2/6 还必须包含签名覆盖且 origin 等于 `DOCUMENT_SERVER_INTERNAL_URL` 的 `url`。此端点遵循 ONLYOFFICE 协议，处理成功或失败都返回 HTTP 200，而不是普通 API 错误状态：
+
+```json
+{"error":0}
+```
+
+验证、下载、校验或保存失败仍为 HTTP 200：
+
+```json
+{"error":1}
+```
 
 ## JWT、callback 与 revision
 
@@ -66,7 +233,7 @@ metadata 保存 `id`、展示名、扩展名、创建/更新时间、正整数 `
 
 状态 `1` 标记活动编辑，`4` 清理活动状态，`2`/`6` 下载并保存文件；状态语义见 [官方 callback handler](https://api.onlyoffice.com/docs/docs-api/usage-api/callback-handler/)。成功且内容改变时 revision 加一，下一次 key 随之变化，避免旧缓存。
 
-状态 `2`/`6` 的保存按文件互斥锁串行：验证 callback URL origin → 30 秒超时、禁止重定向地下载到临时文件 → 大小和 OOXML 结构校验 → SHA-256 去重 → 写事务标记并同步临时内容/metadata → 原子替换 → 清理标记。失败始终保留旧文件。
+状态 `2`/`6` 的保存按文件互斥锁串行：验证 callback URL origin → 在 30 秒超时和禁止重定向条件下把受 `MAX_FILE_BYTES` 限制的响应聚合到内存 → repository 校验 OOXML 结构并做 SHA-256 去重 → 同步写入临时内容、临时 metadata 和事务标记 → 原子替换 → 清理标记。失败始终保留旧文件。
 
 ## 日志、备份和安全
 
