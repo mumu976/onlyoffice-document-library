@@ -201,15 +201,19 @@ async function uploadFile(event) {
 async function openFile(file) {
   selectedFile = { id: file.id, revision: file.revision };
   setEditorStatus("正在加载编辑器");
-  elements.editorShell.hidden = false;
-  document.body.classList.add("editor-open");
 
   try {
     const editorConfig = await api(
       `/api/files/${encodeURIComponent(file.id)}/editor-config`,
     );
+    elements.editorShell.hidden = false;
+    document.body.classList.add("editor-open");
     await editor.open(editorConfig);
   } catch (error) {
+    editor.close();
+    elements.editorShell.hidden = true;
+    document.body.classList.remove("editor-open");
+    selectedFile = null;
     setEditorStatus(`编辑器加载失败：${error.message}`);
     showError(error);
   }
