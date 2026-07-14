@@ -63,6 +63,16 @@ function createEditorHarness() {
   };
 }
 
+function createDeferred() {
+  let reject;
+  let resolve;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    reject = rejectPromise;
+    resolve = resolvePromise;
+  });
+  return { promise, reject, resolve };
+}
+
 test("loadOnlyOfficeApi normalizes the Document Server script URL", async () => {
   const { scripts, windowObject } = createScriptWindow();
   const loading = loadOnlyOfficeApi("http://localhost:8180///", windowObject);
@@ -237,4 +247,160 @@ test("opening again closes the old instance and close is idempotent", async () =
   harness.editor.close();
   assert.equal(harness.destroyCalls, 2);
   assert.equal(harness.editor.isOpen, false);
+});
+
+test("overlapping opens create only the latest editor without leaking an instance", async () => {
+  const captured = [];
+  let destroyCalls = 0;
+  const firstLoad = createDeferred();
+  const secondLoad = createDeferred();
+  const pendingLoads = [firstLoad, secondLoad];
+  class FakeDocEditor {
+    constructor(containerId, config) {
+      captured.push({ containerId, config });
+    }
+
+    destroyEditor() {
+      destroyCalls += 1;
+    }
+  }
+  const editor = new OnlyOfficeEditor({
+    containerId: "editor",
+    documentServerUrl: "http://localhost:8080",
+    apiLoader: () => pendingLoads.shift().promise,
+    windowObject: { CustomEvent }
+  });
+
+  const firstOpen = editor.open({ document: { key: "revision-1" } });
+  const secondOpen = editor.open({ document: { key: "revision-2" } });
+  firstLoad.resolve({ DocEditor: FakeDocEditor });
+  secondLoad.resolve({ DocEditor: FakeDocEditor });
+
+  assert.deepEqual(await Promise.all([firstOpen, secondOpen]), [
+    undefined,
+    undefined
+  ]);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].containerId, "editor");
+  assert.equal(captured[0].config.document.key, "revision-2");
+  assert.equal(destroyCalls, 0);
+  assert.equal(editor.isOpen, true);
+});
+
+test("close cancels an open that is still waiting for the API loader", async () => {
+  const captured = [];
+  const loading = createDeferred();
+  class FakeDocEditor {
+    constructor(containerId, config) {
+      captured.push({ containerId, config });
+    }
+  }
+  const editor = new OnlyOfficeEditor({
+    containerId: "editor",
+    documentServerUrl: "http://localhost:8080",
+    apiLoader: () => loading.promise,
+    windowObject: { CustomEvent }
+  });
+
+  const opening = editor.open({ document: { key: "revision-1" } });
+  editor.close();
+  loading.resolve({ DocEditor: FakeDocEditor });
+
+  assert.equal(await opening, undefined);
+  assert.equal(captured.length, 0);
+  assert.equal(editor.isOpen, false);
+});
+
+test("a cancelled open resolves normally if its loader later rejects", async () => {
+  const loading = createDeferred();
+  const editor = new OnlyOfficeEditor({
+    containerId: "editor",
+    documentServerUrl: "http://localhost:8080",
+    apiLoader: () => loading.promise,
+    windowObject: { CustomEvent }
+  });
+
+  const opening = editor.open({});
+  editor.close();
+  loading.reject(new Error("stale loader failure"));
+
+  assert.equal(await opening, undefined);
+  assert.equal(editor.isOpen, false);
+});
+
+test("close during DocEditor construction destroys the newly stale instance", async () => {
+  let destroyCalls = 0;
+  class ReentrantDocEditor {
+    constructor(containerId, config) {
+      config.events.onAppReady();
+    }
+
+    destroyEditor() {
+      destroyCalls += 1;
+    }
+  }
+  const editor = new OnlyOfficeEditor({
+    containerId: "editor",
+    documentServerUrl: "http://localhost:8080",
+    apiLoader: async () => ({ DocEditor: ReentrantDocEditor }),
+    windowObject: { CustomEvent }
+  });
+
+  await editor.open({
+    events: {
+      onAppReady() {
+        editor.close();
+      }
+    }
+  });
+
+  assert.equal(destroyCalls, 1);
+  assert.equal(editor.isOpen, false);
+});
+
+test("a reentrant open during construction destroys only the stale instance", async () => {
+  const instances = [];
+  let secondOpen;
+  class ReentrantDocEditor {
+    constructor(containerId, config) {
+      this.destroyCalls = 0;
+      this.key = config.document.key;
+      instances.push(this);
+      if (this.key === "revision-1") {
+        config.events.onAppReady();
+      }
+    }
+
+    destroyEditor() {
+      this.destroyCalls += 1;
+    }
+  }
+  const editor = new OnlyOfficeEditor({
+    containerId: "editor",
+    documentServerUrl: "http://localhost:8080",
+    apiLoader: async () => ({ DocEditor: ReentrantDocEditor }),
+    windowObject: { CustomEvent }
+  });
+
+  await editor.open({
+    document: { key: "revision-1" },
+    events: {
+      onAppReady() {
+        secondOpen = editor.open({ document: { key: "revision-2" } });
+      }
+    }
+  });
+  await secondOpen;
+
+  assert.deepEqual(
+    instances.map(instance => ({
+      destroyCalls: instance.destroyCalls,
+      key: instance.key
+    })),
+    [
+      { destroyCalls: 1, key: "revision-1" },
+      { destroyCalls: 0, key: "revision-2" }
+    ]
+  );
+  assert.equal(editor.isOpen, true);
 });

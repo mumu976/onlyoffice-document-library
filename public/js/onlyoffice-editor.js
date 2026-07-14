@@ -45,6 +45,7 @@ export class OnlyOfficeEditor extends EventTarget {
   #containerId;
   #documentServerUrl;
   #editor = null;
+  #generation = 0;
   #windowObject;
 
   constructor({
@@ -65,11 +66,25 @@ export class OnlyOfficeEditor extends EventTarget {
   }
 
   async open(config) {
-    this.close();
-    const DocsAPI = await this.#apiLoader(
-      this.#documentServerUrl,
-      this.#windowObject
-    );
+    const generation = ++this.#generation;
+    this.#destroyEditor();
+    let DocsAPI;
+    try {
+      DocsAPI = await this.#apiLoader(
+        this.#documentServerUrl,
+        this.#windowObject
+      );
+    } catch (error) {
+      if (generation !== this.#generation) {
+        return;
+      }
+      throw error;
+    }
+
+    if (generation !== this.#generation) {
+      return;
+    }
+
     const backendEvents =
       config.events && typeof config.events === "object" ? config.events : {};
     const wrapper = this;
@@ -107,10 +122,20 @@ export class OnlyOfficeEditor extends EventTarget {
       }
     };
 
-    this.#editor = new DocsAPI.DocEditor(this.#containerId, editorConfig);
+    const editor = new DocsAPI.DocEditor(this.#containerId, editorConfig);
+    if (generation !== this.#generation) {
+      editor.destroyEditor();
+      return;
+    }
+    this.#editor = editor;
   }
 
   close() {
+    this.#generation += 1;
+    this.#destroyEditor();
+  }
+
+  #destroyEditor() {
     if (this.#editor === null) {
       return;
     }
