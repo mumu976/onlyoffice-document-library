@@ -1,0 +1,9 @@
+.git
+node_modules
+storage
+.env
+docs/superpowers
+tests
+screenshots
+logs
+*.log
