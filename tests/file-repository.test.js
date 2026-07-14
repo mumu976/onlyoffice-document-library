@@ -6,8 +6,10 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
+  open as fsOpen,
   readFile,
   readdir,
+  rename as fsRename,
   rm,
   unlink,
   writeFile,
@@ -44,6 +46,7 @@ async function createFixture(t, options = {}) {
     now: options.now ?? (() => new Date("2026-07-14T08:00:00.000Z")),
     idFactory: options.idFactory ?? (() => firstId),
     maxUncompressedBytes,
+    fileOps: options.fileOps,
   });
   await repository.init();
   return { repository, root, storageDir, templateDir };
@@ -64,6 +67,38 @@ async function makeDifferentDocx(outputPath, extraContent = Buffer.from("differe
   zip.outputStream.pipe(output);
   await finished(output);
   return readFile(outputPath);
+}
+
+function createRepository({ storageDir, templateDir, fileOps }) {
+  return new FileRepository({
+    storageDir,
+    templateDir,
+    now: () => new Date("2026-07-14T10:00:00.000Z"),
+    idFactory: () => secondId,
+    maxUncompressedBytes,
+    fileOps,
+  });
+}
+
+function replacementPaths(fileDir, extension = "docx") {
+  return {
+    content: path.join(fileDir, `content.${extension}`),
+    metadata: path.join(fileDir, "metadata.json"),
+    marker: path.join(fileDir, ".replace-transaction.json"),
+    markerTemp: path.join(fileDir, ".replace-transaction.json.tmp"),
+    backup: path.join(fileDir, `.content.${extension}.backup`),
+    nextContent: path.join(fileDir, `.content.${extension}.next`),
+    nextMetadata: path.join(fileDir, ".metadata.json.next"),
+  };
+}
+
+function replacementMarker(metadata, newBuffer) {
+  return {
+    id: metadata.id,
+    extension: metadata.extension,
+    oldSha256: metadata.sha256,
+    newSha256: sha256(newBuffer),
+  };
 }
 
 test("supports the complete create, read, replace, list, and remove lifecycle", async (t) => {
@@ -208,27 +243,21 @@ test("lists valid repository entries newest first and ignores other entries", as
   );
 });
 
-test("sorts accepted metadata timestamps chronologically", async (t) => {
-  const ids = [firstId, secondId];
-  const times = [
-    new Date("2000-01-01T00:00:00.000Z"),
-    new Date("2026-07-14T09:00:00.000Z"),
-  ];
-  const { repository, storageDir } = await createFixture(t, {
-    idFactory: () => ids.shift(),
-    now: () => times.shift(),
-  });
-  const older = await repository.create({ name: "较早", type: "word" });
-  const newer = await repository.create({ name: "较新", type: "word" });
-  const olderMetadataPath = path.join(storageDir, older.id, "metadata.json");
+test("rejects metadata timestamps that are not canonical ISO 8601", async (t) => {
+  const { repository, storageDir } = await createFixture(t);
+  const created = await repository.create({ name: "时间格式", type: "word" });
+  const metadataPath = path.join(storageDir, created.id, "metadata.json");
   await writeFile(
-    olderMetadataPath,
-    JSON.stringify({ ...older, updatedAt: "Sat, 01 Jan 2000 00:00:00 GMT" }),
+    metadataPath,
+    JSON.stringify({
+      ...created,
+      updatedAt: "Tue, 14 Jul 2026 08:00:00 GMT",
+    }),
   );
 
-  assert.deepEqual(
-    (await repository.list()).map(({ id }) => id),
-    [newer.id, older.id],
+  await assert.rejects(
+    repository.get(created.id),
+    (error) => error.code === "STORAGE_CORRUPT" && error.status === 500,
   );
 });
 
@@ -257,38 +286,276 @@ test("does not delete an existing UUID directory when creation collides", async 
   assert.equal(await readFile(markerPath, "utf8"), "keep");
 });
 
-test("removes replacement temp files when the content rename fails", async (t) => {
-  const { repository, root, storageDir } = await createFixture(t);
-  const created = await repository.create({ name: "替换失败", type: "word" });
-  const fileDir = path.join(storageDir, created.id);
-  const contentPath = path.join(fileDir, "content.docx");
-  const largeValidDocx = await makeDifferentDocx(
-    path.join(root, "large.docx"),
-    Buffer.alloc(8 * 1024 * 1024, 1),
+test("rolls back old content when metadata commit fails after content install", async (t) => {
+  let expectedNewSha256;
+  let contentWasInstalled = false;
+  const fileOps = {
+    rename: async (source, target) => {
+      if (
+        path.basename(source) === ".metadata.json.next" &&
+        path.basename(target) === "metadata.json"
+      ) {
+        const installed = await readFile(
+          path.join(path.dirname(target), "content.docx"),
+        );
+        contentWasInstalled = sha256(installed) === expectedNewSha256;
+        throw new Error("metadata commit failed");
+      }
+      return fsRename(source, target);
+    },
+  };
+  const { repository, root, storageDir } = await createFixture(t, { fileOps });
+  const created = await repository.create({ name: "替换回滚", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "rollback.docx"));
+  expectedNewSha256 = sha256(newBuffer);
+
+  await assert.rejects(
+    repository.replaceContent(created.id, newBuffer),
+    /metadata commit failed/,
   );
 
-  const obstructRename = async () => {
-    for (let attempt = 0; attempt < 2000; attempt += 1) {
-      const entries = await readdir(fileDir);
-      if (entries.some((entry) => entry.startsWith(".content.docx."))) {
-        await rm(contentPath);
-        await mkdir(contentPath);
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1));
-    }
-    throw new Error("replacement temp file was not observed");
-  };
+  assert.equal(contentWasInstalled, true);
+  assert.deepEqual(await repository.readContent(created.id), oldBuffer);
+  assert.equal((await repository.get(created.id)).revision, 1);
+  assert.deepEqual(
+    (await readdir(path.join(storageDir, created.id))).sort(),
+    ["content.docx", "metadata.json"],
+  );
+});
 
-  const [replacement, obstruction] = await Promise.allSettled([
-    repository.replaceContent(created.id, largeValidDocx),
-    obstructRename(),
+test("cleans owned prewrites when a synced handle fails to close", async (t) => {
+  const fileOps = {
+    open: async (filePath, flags) => {
+      const handle = await fsOpen(filePath, flags);
+      if (path.basename(filePath) !== ".metadata.json.next") return handle;
+      return {
+        writeFile: (...args) => handle.writeFile(...args),
+        sync: () => handle.sync(),
+        close: async () => {
+          await handle.close();
+          throw new Error("close failed");
+        },
+      };
+    },
+  };
+  const { repository, root, storageDir } = await createFixture(t, { fileOps });
+  const created = await repository.create({ name: "关闭失败", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "close-failure.docx"));
+
+  await assert.rejects(repository.replaceContent(created.id, newBuffer), /close failed/);
+
+  assert.deepEqual(await repository.readContent(created.id), oldBuffer);
+  assert.deepEqual(
+    (await readdir(path.join(storageDir, created.id))).sort(),
+    ["content.docx", "metadata.json"],
+  );
+});
+
+test("preserves the commit error when rollback fails and leaves startup recovery", async (t) => {
+  const commitError = new Error("metadata commit failed");
+  const rollbackError = new Error("rollback failed");
+  const fileOps = {
+    rename: async (source, target) => {
+      if (
+        path.basename(source) === ".metadata.json.next" &&
+        path.basename(target) === "metadata.json"
+      ) {
+        throw commitError;
+      }
+      if (
+        path.basename(source) === ".content.docx.backup" &&
+        path.basename(target) === "content.docx"
+      ) {
+        throw rollbackError;
+      }
+      return fsRename(source, target);
+    },
+  };
+  const { repository, root, storageDir, templateDir } = await createFixture(t, {
+    fileOps,
+  });
+  const created = await repository.create({ name: "回滚失败", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "rollback-failure.docx"));
+
+  await assert.rejects(
+    repository.replaceContent(created.id, newBuffer),
+    (error) => error === commitError && error.cause === rollbackError,
+  );
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+  assert.deepEqual(await restarted.readContent(created.id), oldBuffer);
+});
+
+test("does not delete an existing transaction when prewrite collides", async (t) => {
+  const { repository, root, storageDir } = await createFixture(t);
+  const created = await repository.create({ name: "事务冲突", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "collision.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  await Promise.all([
+    writeFile(paths.nextContent, newBuffer),
+    writeFile(paths.backup, oldBuffer),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
   ]);
 
-  assert.equal(obstruction.status, "fulfilled");
-  assert.equal(replacement.status, "rejected");
-  assert.equal(
-    (await readdir(fileDir)).some((entry) => entry.endsWith(".tmp")),
-    false,
+  await assert.rejects(
+    repository.replaceContent(created.id, newBuffer),
+    (error) => error.code === "EEXIST",
+  );
+  await access(paths.marker);
+  await access(paths.backup);
+  await access(paths.nextContent);
+});
+
+test("init restores an interrupted replacement with old metadata and backup", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "启动回滚", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "recover-old.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  const nextMetadata = {
+    ...created,
+    updatedAt: "2026-07-14T10:00:00.000Z",
+    revision: 2,
+    sha256: sha256(newBuffer),
+  };
+  await Promise.all([
+    writeFile(paths.content, newBuffer),
+    writeFile(paths.backup, oldBuffer),
+    writeFile(paths.nextMetadata, JSON.stringify(nextMetadata)),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+
+  assert.deepEqual(await restarted.readContent(created.id), oldBuffer);
+  assert.equal((await restarted.get(created.id)).revision, 1);
+  assert.deepEqual((await readdir(fileDir)).sort(), ["content.docx", "metadata.json"]);
+});
+
+test("init discards synced prewrites left before marker installation", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "标记前崩溃", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "before-marker.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  await Promise.all([
+    writeFile(paths.nextContent, newBuffer),
+    writeFile(paths.nextMetadata, JSON.stringify({ ...created, revision: 2 })),
+    writeFile(paths.markerTemp, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+
+  assert.deepEqual(await restarted.readContent(created.id), oldBuffer);
+  assert.deepEqual((await readdir(fileDir)).sort(), ["content.docx", "metadata.json"]);
+});
+
+test("init aborts a marked replacement before old content moves", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "备份前崩溃", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "before-backup.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  await Promise.all([
+    writeFile(paths.nextContent, newBuffer),
+    writeFile(paths.nextMetadata, JSON.stringify({ ...created, revision: 2 })),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+
+  assert.deepEqual(await restarted.readContent(created.id), oldBuffer);
+  assert.deepEqual((await readdir(fileDir)).sort(), ["content.docx", "metadata.json"]);
+});
+
+test("init restores backup when old content moved before next install", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "安装前崩溃", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "before-install.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  await fsRename(paths.content, paths.backup);
+  await Promise.all([
+    writeFile(paths.nextContent, newBuffer),
+    writeFile(paths.nextMetadata, JSON.stringify({ ...created, revision: 2 })),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+
+  assert.deepEqual(await restarted.readContent(created.id), oldBuffer);
+  assert.deepEqual((await readdir(fileDir)).sort(), ["content.docx", "metadata.json"]);
+});
+
+test("init finalizes a committed replacement that still has backup and marker", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "启动完成", type: "word" });
+  const oldBuffer = await repository.readContent(created.id);
+  const newBuffer = await makeDifferentDocx(path.join(root, "recover-new.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  const committedMetadata = {
+    ...created,
+    updatedAt: "2026-07-14T10:00:00.000Z",
+    revision: 2,
+    sha256: sha256(newBuffer),
+  };
+  await Promise.all([
+    writeFile(paths.content, newBuffer),
+    writeFile(paths.metadata, JSON.stringify(committedMetadata)),
+    writeFile(paths.backup, oldBuffer),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await restarted.init();
+
+  assert.deepEqual(await restarted.readContent(created.id), newBuffer);
+  assert.equal((await restarted.get(created.id)).revision, 2);
+  assert.deepEqual((await readdir(fileDir)).sort(), ["content.docx", "metadata.json"]);
+});
+
+test("init rejects an interrupted replacement with no trustworthy backup", async (t) => {
+  const { repository, root, storageDir, templateDir } = await createFixture(t);
+  const created = await repository.create({ name: "无法恢复", type: "word" });
+  const newBuffer = await makeDifferentDocx(path.join(root, "unrecoverable.docx"));
+  const fileDir = path.join(storageDir, created.id);
+  const paths = replacementPaths(fileDir);
+  await Promise.all([
+    writeFile(paths.content, newBuffer),
+    writeFile(paths.backup, Buffer.from("not the old document")),
+    writeFile(paths.marker, JSON.stringify(replacementMarker(created, newBuffer))),
+  ]);
+
+  const restarted = createRepository({ storageDir, templateDir });
+  await assert.rejects(
+    restarted.init(),
+    (error) => error.code === "STORAGE_CORRUPT" && error.status === 500,
+  );
+});
+
+test("get rejects content whose hash does not match metadata", async (t) => {
+  const { repository, root, storageDir } = await createFixture(t);
+  const created = await repository.create({ name: "哈希不符", type: "word" });
+  const different = await makeDifferentDocx(path.join(root, "mismatch.docx"));
+  await writeFile(path.join(storageDir, created.id, "content.docx"), different);
+
+  await assert.rejects(
+    repository.get(created.id),
+    (error) => error.code === "STORAGE_CORRUPT" && error.status === 500,
   );
 });
