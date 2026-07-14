@@ -226,6 +226,35 @@ test("exposes health, public config, and the complete file CRUD API", async (t) 
   await request(app).get("/api/files").expect(200, { data: [] });
 });
 
+test("serves the document library page and editor wrapper", async (t) => {
+  const { app } = await createFixture(t);
+
+  const page = await request(app)
+    .get("/")
+    .expect("Content-Type", /html/)
+    .expect(200);
+  assert.match(page.text, /id="file-list"/);
+  assert.match(page.text, /id="editor-shell"/);
+  assert.match(page.text, /<link\s+rel="stylesheet"\s+href="\/css\/app\.css">/);
+  assert.match(
+    page.text,
+    /<script\s+type="module"\s+src="\/js\/app\.js"><\/script>/,
+  );
+
+  await request(app)
+    .get("/css/app.css")
+    .expect("Content-Type", /css/)
+    .expect(200);
+  await request(app)
+    .get("/js/app.js")
+    .expect("Content-Type", /javascript/)
+    .expect(200);
+  await request(app)
+    .get("/js/onlyoffice-editor.js")
+    .expect("Content-Type", /javascript/)
+    .expect(200);
+});
+
 test("uploads only the multipart field named file", async (t) => {
   const { app } = await createFixture(t);
   const docx = await readFile(templateUrls.docx);

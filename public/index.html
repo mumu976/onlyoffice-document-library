@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ONLYOFFICE 文档库演示</title>
+    <link rel="stylesheet" href="/css/app.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header__inner">
+        <div>
+          <p class="eyebrow">文档协作工作台</p>
+          <h1>ONLYOFFICE 文档库演示</h1>
+        </div>
+        <p id="health-status" class="health-status" role="status" aria-live="polite">
+          正在连接服务
+        </p>
+      </div>
+    </header>
+
+    <main class="app-container">
+      <section class="toolbar" aria-label="文档操作">
+        <div class="create-actions">
+          <button id="new-word" class="button button--primary" type="button">
+            新建 Word
+          </button>
+          <button id="new-excel" class="button button--secondary" type="button">
+            新建 Excel
+          </button>
+        </div>
+
+        <form id="upload-form" class="upload-form">
+          <div class="upload-field">
+            <label for="upload-file">上传 Word 或 Excel</label>
+            <input
+              id="upload-file"
+              name="file"
+              type="file"
+              accept=".docx,.xlsx"
+              aria-describedby="upload-help"
+              required
+            >
+            <span id="upload-help" class="field-help">支持 .docx 和 .xlsx</span>
+          </div>
+          <button class="button button--secondary" type="submit">上传</button>
+        </form>
+      </section>
+
+      <p id="app-status" class="status-banner" role="status" aria-live="polite" hidden></p>
+
+      <section class="library" aria-labelledby="library-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">文件管理</p>
+            <h2 id="library-title">全部文档</h2>
+          </div>
+          <p id="file-count" class="file-count">0 个文档</p>
+        </div>
+
+        <div class="file-table-wrap">
+          <table class="file-table">
+            <caption class="sr-only">文档列表及可用操作</caption>
+            <thead>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">类型</th>
+                <th scope="col">更新时间</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="file-list"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <section
+      id="editor-shell"
+      class="editor-shell"
+      aria-labelledby="editor-title"
+      hidden
+    >
+      <header class="editor-toolbar">
+        <div class="editor-heading">
+          <h2 id="editor-title">文档编辑器</h2>
+          <p id="editor-status" role="status" aria-live="polite">正在加载编辑器</p>
+        </div>
+        <button id="close-editor" class="button button--secondary" type="button">
+          关闭编辑器
+        </button>
+      </header>
+      <div id="onlyoffice-editor"></div>
+    </section>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
