@@ -30,6 +30,8 @@ openssl rand -hex 32
 
 将随机值写入 `.env` 的 `JWT_SECRET`。IP 示例是 `DOCUMENT_SERVER_PUBLIC_URL=http://192.168.1.20:8080`，域名示例是 `DOCUMENT_SERVER_PUBLIC_URL=https://docs.example.com`。`DOCUMENT_SERVER_INTERNAL_URL=http://document-server`、`APP_INTERNAL_URL=http://app:3000` 保持 Compose 服务名。
 
+浏览器访问 Docs 后，保存 callback 里的下载 URL 可能使用公共域名。后端只接受 `DOCUMENT_SERVER_PUBLIC_URL` 和 `DOCUMENT_SERVER_INTERNAL_URL` 两个 origin，并把受信任的公共 URL 保留路径/查询后改写到内部地址下载；因此公共 URL 必须准确配置，不能用宽泛域名或通配规则代替。
+
 **必须先执行 `mkdir` 和 `chown 1000:1000`。** Dockerfile 对镜像内 `/app/storage` 的 chown 会被 `./storage:/app/storage` bind mount 遮蔽；宿主机属主不正确时 Node 用户无法写入。
 
 ## 启动、健康与防火墙

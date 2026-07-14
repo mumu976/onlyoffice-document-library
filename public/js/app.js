@@ -310,7 +310,7 @@ async function initialize() {
 }
 
 elements.newWord.addEventListener("click", () => createFile("word", "Word"));
-elements.newExcel.addEventListener("click", () => createFile("excel", "Excel"));
+elements.newExcel.addEventListener("click", () => createFile("spreadsheet", "Excel"));
 elements.uploadForm.addEventListener("submit", uploadFile);
 elements.fileList.addEventListener("click", handleFileAction);
 elements.closeEditor.addEventListener("click", closeEditor);

@@ -8,6 +8,7 @@ import { KeyedMutex } from "../src/services/keyed-mutex.js";
 const fileId = "11111111-1111-4111-8111-111111111111";
 const jwtSecret = "12345678901234567890123456789012";
 const documentServerInternalUrl = "http://document-server";
+const documentServerPublicUrl = "http://localhost:8080";
 const maxFileBytes = 32;
 
 function deferred() {
@@ -66,6 +67,7 @@ function createFixture(options = {}) {
     mutex: options.mutex ?? new KeyedMutex(),
     jwtSecret,
     documentServerInternalUrl,
+    documentServerPublicUrl,
     maxFileBytes: options.maxFileBytes ?? maxFileBytes,
     fetchImpl,
     logger: { error: (entry) => logEntries.push(entry) },
@@ -142,6 +144,23 @@ test("status 2 downloads from the trusted origin, replaces content, then marks i
   ]);
   assert.deepEqual(fixture.registryCalls.markInactive, [fileId]);
   assert.equal(fixture.registry.isActive(fileId), false);
+});
+
+test("rewrites a trusted public callback URL to the internal Document Server", async () => {
+  const fixture = createFixture();
+  const body = callbackBody(2, {
+    url: "http://localhost:8080/cache/file.docx?download=signed-value",
+  });
+
+  assert.deepEqual(await handle(fixture.service, body), { error: 0 });
+  assert.equal(fixture.fetchCalls.length, 1);
+  assert.equal(
+    fixture.fetchCalls[0].url,
+    "http://document-server/cache/file.docx?download=signed-value",
+  );
+  assert.deepEqual(fixture.replacements, [
+    { id: fileId, buffer: Buffer.from("saved document") },
+  ]);
 });
 
 test("status 6 saves content while keeping the file active", async () => {

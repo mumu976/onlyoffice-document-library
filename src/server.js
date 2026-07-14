@@ -59,6 +59,7 @@ export async function startServer({
     mutex,
     jwtSecret: config.jwtSecret,
     documentServerInternalUrl: config.documentServerInternalUrl,
+    documentServerPublicUrl: config.documentServerPublicUrl,
     maxFileBytes: config.maxFileBytes,
     logger,
   });

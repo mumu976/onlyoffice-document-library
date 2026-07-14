@@ -10,6 +10,7 @@ export class CallbackService {
     mutex,
     jwtSecret,
     documentServerInternalUrl,
+    documentServerPublicUrl = documentServerInternalUrl,
     maxFileBytes,
     fetchImpl = globalThis.fetch,
     logger = console,
@@ -18,7 +19,9 @@ export class CallbackService {
     this.registry = registry;
     this.mutex = mutex;
     this.jwtSecret = jwtSecret;
-    this.documentServerOrigin = new URL(documentServerInternalUrl).origin;
+    this.documentServerInternalUrl = new URL(documentServerInternalUrl);
+    this.documentServerInternalOrigin = this.documentServerInternalUrl.origin;
+    this.documentServerPublicOrigin = new URL(documentServerPublicUrl).origin;
     this.maxFileBytes = maxFileBytes;
     this.fetchImpl = fetchImpl;
     this.logger = logger;
@@ -69,11 +72,19 @@ export class CallbackService {
 
   async #download(downloadUrl) {
     const parsedUrl = new URL(downloadUrl);
-    if (parsedUrl.origin !== this.documentServerOrigin) {
+    let fetchUrl = parsedUrl;
+    if (parsedUrl.origin === this.documentServerPublicOrigin) {
+      fetchUrl = new URL(parsedUrl);
+      fetchUrl.protocol = this.documentServerInternalUrl.protocol;
+      fetchUrl.hostname = this.documentServerInternalUrl.hostname;
+      fetchUrl.port = this.documentServerInternalUrl.port;
+      fetchUrl.username = "";
+      fetchUrl.password = "";
+    } else if (parsedUrl.origin !== this.documentServerInternalOrigin) {
       throw new Error("callback 下载地址不受信任");
     }
 
-    const response = await this.fetchImpl(downloadUrl, {
+    const response = await this.fetchImpl(fetchUrl.href, {
       signal: AbortSignal.timeout(30_000),
       redirect: "error",
     });

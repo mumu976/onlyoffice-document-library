@@ -245,10 +245,11 @@ test("serves the document library page and editor wrapper", async (t) => {
     .get("/css/app.css")
     .expect("Content-Type", /css/)
     .expect(200);
-  await request(app)
+  const appScript = await request(app)
     .get("/js/app.js")
     .expect("Content-Type", /javascript/)
     .expect(200);
+  assert.match(appScript.text, /createFile\("spreadsheet",\s*"Excel"\)/);
   await request(app)
     .get("/js/onlyoffice-editor.js")
     .expect("Content-Type", /javascript/)

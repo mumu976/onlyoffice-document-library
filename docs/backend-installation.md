@@ -23,7 +23,7 @@ Linux 可执行 `npm ci && npm run templates && npm test && npm start`。默认�
 | `STORAGE_DIR` | 否 | `./storage` | UUID 文件目录 |
 | `TEMPLATE_DIR` | 否 | `./templates` | 空白 OOXML 模板 |
 | `DOCUMENT_SERVER_PUBLIC_URL` | 是 | `http://localhost:8080`（Compose 回退） | 浏览器可访问的 Docs 地址 |
-| `DOCUMENT_SERVER_INTERNAL_URL` | 是 | 无 | callback 下载白名单；Compose 为 `http://document-server` |
+| `DOCUMENT_SERVER_INTERNAL_URL` | 是 | 无 | callback 文件的容器内下载目标；Compose 为 `http://document-server` |
 | `APP_INTERNAL_URL` | 是 | 无 | Docs 读取文件和 callback 地址；Compose 为 `http://app:3000` |
 | `JWT_SECRET` | 是 | 无 | 至少 32 字符，与 Docs 相同 |
 | `MAX_FILE_BYTES` | 否 | `20971520` | 上传/callback 上限（20 MiB） |
@@ -215,7 +215,7 @@ Content-Disposition: attachment; filename="download.docx"; filename*=UTF-8''%E5%
 }
 ```
 
-状态 2/6 还必须包含签名覆盖且 origin 等于 `DOCUMENT_SERVER_INTERNAL_URL` 的 `url`。此端点遵循 ONLYOFFICE 协议，处理成功或失败都返回 HTTP 200，而不是普通 API 错误状态：
+状态 2/6 还必须包含签名覆盖的 `url`。其 origin 只能等于 `DOCUMENT_SERVER_PUBLIC_URL` 或 `DOCUMENT_SERVER_INTERNAL_URL`；公共地址通过白名单后会保留路径和查询参数，并安全改写到 `DOCUMENT_SERVER_INTERNAL_URL` 下载，其他 origin 一律拒绝。此端点遵循 ONLYOFFICE 协议，处理成功或失败都返回 HTTP 200，而不是普通 API 错误状态：
 
 ```json
 {"error":0}
@@ -233,7 +233,7 @@ Content-Disposition: attachment; filename="download.docx"; filename*=UTF-8''%E5%
 
 状态 `1` 标记活动编辑，`4` 清理活动状态，`2`/`6` 下载并保存文件；状态语义见 [官方 callback handler](https://api.onlyoffice.com/docs/docs-api/usage-api/callback-handler/)。成功且内容改变时 revision 加一，下一次 key 随之变化，避免旧缓存。
 
-状态 `2`/`6` 的保存按文件互斥锁串行：验证 callback URL origin → 在 30 秒超时和禁止重定向条件下把受 `MAX_FILE_BYTES` 限制的响应聚合到内存 → repository 校验 OOXML 结构并做 SHA-256 去重 → 同步写入临时内容、临时 metadata 和事务标记 → 原子替换 → 清理标记。失败始终保留旧文件。
+状态 `2`/`6` 的保存按文件互斥锁串行：验证 callback URL 属于公共/内部 Docs origin，必要时改写到容器内地址 → 在 30 秒超时和禁止重定向条件下把受 `MAX_FILE_BYTES` 限制的响应聚合到内存 → repository 校验 OOXML 结构并做 SHA-256 去重 → 同步写入临时内容、临时 metadata 和事务标记 → 原子替换 → 清理标记。失败始终保留旧文件。
 
 ## 日志、备份和安全
 
