@@ -73,7 +73,14 @@ docker compose down
 
 ## LAN/IP 试运行与防火墙边界
 
-LAN 演示可以限制可信来源：
+基础 `compose.yaml` 默认只把 3000、8080 绑定到 `127.0.0.1`。只有完成云安全组或上游防火墙限制后，LAN/IP 试运行才使用覆盖文件启动：
+
+```bash
+docker compose -f compose.yaml -f compose.lan.yaml config --quiet
+docker compose -f compose.yaml -f compose.lan.yaml up -d
+```
+
+LAN 演示可以进一步限制可信来源：
 
 ```bash
 sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
@@ -89,7 +96,7 @@ sudo ufw enable
 
 下面示例假定 Nginx 安装在同一台宿主机：`files.example.com` 反代应用 3000，`docs.example.com` 反代 Docs 8080。
 
-在正式环境中，必须先把 `compose.yaml` 的端口映射从所有网卡改为仅宿主机回环地址：
+`compose.yaml` 已经默认使用下面的宿主机回环地址映射，正式环境不要加载 `compose.lan.yaml`：
 
 ```yaml
 services:
@@ -101,7 +108,7 @@ services:
       - "127.0.0.1:3000:3000"
 ```
 
-修改后重新解析并应用 Compose，确认两个端口只监听回环地址：
+重新解析并应用 Compose，确认两个端口只监听回环地址：
 
 ```bash
 docker compose config --quiet

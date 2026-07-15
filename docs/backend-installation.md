@@ -63,11 +63,17 @@ templates/blank.xlsx
 
 metadata 保存 `id`、展示名、扩展名、创建/更新时间、正整数 `revision` 和 SHA-256。展示名不参与磁盘路径，路径只使用服务端 UUID。
 
-## 九个 REST 端点
+## REST 接口
 
 除二进制下载、204 删除响应和 ONLYOFFICE callback 协议外，成功 JSON 使用 `{ "data": ... }`；普通 API 错误使用 `{ "error": { "code": "稳定错误码", "message": "中文说明" } }`。以下 UUID、时间、SHA-256 和 JWT 是便于阅读的示例值。
 
-### 1. `GET /health`
+### 1. `GET /health`、`GET /health/live`、`GET /health/ready`
+
+`/health` 和 `/health/live` 是进程存活检查，成功返回 `{"data":{"status":"ok"}}`。`/health/ready` 还会读取仓储并检查内部 Document Server；成功返回 `{"data":{"status":"ready"}}`，依赖不可用时返回 HTTP 503：
+
+```json
+{"error":{"code":"SERVICE_NOT_READY","message":"服务尚未就绪"}}
+```
 
 无请求体。成功为 HTTP 200：
 
@@ -250,7 +256,7 @@ Content-Disposition: attachment; filename="download.docx"; filename*=UTF-8''%E5%
 
 ## JWT、callback 与 revision
 
-后端用 HS256 和 `JWT_SECRET` 对完整编辑配置签名；callback 优先验证 `Authorization: Bearer`，也接受 body token。签名的 `status`、`key`、`url` 必须与请求一致，key 必须以当前文件 ID 开头。
+后端用 HS256 和 `JWT_SECRET` 对完整编辑配置签名；callback 优先验证 `Authorization: Bearer`，也接受 body token。签名的 `status`、`key`、`url` 必须与请求一致，key 必须以当前文件 ID 开头并等于当前活动编辑会话 key。状态 1 建立活动 key 并拒绝退回更旧 key，状态 4 只关闭相同 key，状态 2/6 的旧会话保存会被拒绝。
 
 状态 `1` 标记活动编辑，`4` 清理活动状态，`2`/`6` 下载并保存文件；状态语义见 [官方 callback handler](https://api.onlyoffice.com/docs/docs-api/usage-api/callback-handler/)。成功且内容改变时 revision 加一，下一次 key 随之变化，避免旧缓存。
 

@@ -8,7 +8,7 @@ services:
       JWT_HEADER: Authorization
       ALLOW_PRIVATE_IP_ADDRESS: "true"
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     volumes:
       - document_data:/var/www/onlyoffice/Data
       - document_logs:/var/log/onlyoffice
@@ -32,14 +32,14 @@ services:
       MAX_FILE_BYTES: ${MAX_FILE_BYTES:-20971520}
       MAX_UNCOMPRESSED_BYTES: ${MAX_UNCOMPRESSED_BYTES:-104857600}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./storage:/app/storage
     depends_on:
       document-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 12

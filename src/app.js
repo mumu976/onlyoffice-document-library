@@ -38,6 +38,7 @@ export function createApp({
   editorConfigService,
   activeFiles,
   callbackService,
+  readinessService = { async check() {} },
   logger = console,
 }) {
   const app = express();
@@ -60,8 +61,20 @@ export function createApp({
   );
   app.use(express.static(path.resolve(publicDirectory)));
 
-  app.get("/health", (_request, response) => {
+  const livenessHandler = (_request, response) => {
     response.json({ data: { status: "ok" } });
+  };
+  app.get("/health", livenessHandler);
+  app.get("/health/live", livenessHandler);
+  app.get("/health/ready", async (_request, response) => {
+    try {
+      await readinessService.check();
+      response.json({ data: { status: "ready" } });
+    } catch {
+      response.status(503).json({
+        error: { code: "SERVICE_NOT_READY", message: "服务尚未就绪" },
+      });
+    }
   });
   app.get("/api/config", (_request, response) => {
     response.json({

@@ -9,7 +9,8 @@
     "start": "node src/server.js",
     "templates": "node scripts/generate-templates.mjs",
     "test": "node --test --test-reporter=spec",
-    "test:coverage": "node --test --experimental-test-coverage"
+    "test:coverage": "node --test --experimental-test-coverage",
+    "check": "npm test && npm run test:coverage"
   },
   "dependencies": {
     "express": "5.2.1",

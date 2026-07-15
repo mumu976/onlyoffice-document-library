@@ -81,14 +81,18 @@ test("uses the spreadsheet document type for Excel files", () => {
   assert.equal(config.document.key, `${id}-7`);
 });
 
-test("tracks active file IDs synchronously", () => {
+test("tracks active document keys synchronously", () => {
   const registry = new ActiveFileRegistry();
+  const key = `${id}-7`;
 
   assert.equal(registry.isActive(id), false);
-  assert.equal(registry.markActive(id), undefined);
+  assert.equal(registry.activeKey(id), undefined);
+  assert.equal(registry.markActive(id, key), undefined);
   assert.equal(registry.isActive(id), true);
+  assert.equal(registry.activeKey(id), key);
   assert.equal(registry.markInactive(id), undefined);
   assert.equal(registry.isActive(id), false);
+  assert.equal(registry.activeKey(id), undefined);
 });
 
 test("serializes functions that use the same mutex key", async () => {

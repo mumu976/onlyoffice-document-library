@@ -199,10 +199,11 @@ cd /opt/onlyoffice-demo
 sudo docker compose config --quiet
 sudo docker compose pull document-server
 sudo docker compose build app
-sudo docker compose up -d
+sudo docker compose -f compose.yaml -f compose.lan.yaml config --quiet
+sudo docker compose -f compose.yaml -f compose.lan.yaml up -d
 ```
 
-`docker compose config --quiet` 没有输出并返回提示符，表示 Compose 和 `.env` 能正常解析。第一次拉取 `onlyoffice/documentserver:9.4.0.1` 需要下载较大的镜像，取决于服务器网络，可能持续数分钟。
+两次 `config --quiet` 都没有输出并返回提示符，表示基础配置和 LAN 覆盖配置能正常解析。`compose.yaml` 默认只监听本机，`compose.lan.yaml` 才会把 3000、8080 发布到服务器网卡；只能在安全组已限制可信来源时使用。第一次拉取 `onlyoffice/documentserver:9.4.0.1` 需要下载较大的镜像，取决于服务器网络，可能持续数分钟。
 
 项目固定镜像版本而不是使用 `latest`，目的是避免未来重启时突然换成未经验证的新版本。
 
@@ -218,10 +219,11 @@ Document Server 第一次启动时通常先显示 `starting`。等待约 20～30
 
 ```bash
 curl -fsS http://127.0.0.1:3000/health
+curl -fsS http://127.0.0.1:3000/health/ready
 curl -fsS http://127.0.0.1:8080/healthcheck
 ```
 
-预期第一条返回包含 `"status":"ok"` 的 JSON，第二条返回 `true`。
+预期第一条返回包含 `"status":"ok"`，第二条返回包含 `"status":"ready"`，第三条返回 `true`。
 
 如果超过 5 分钟仍未健康，先看日志，不要反复删除和重建容器：
 
@@ -274,7 +276,7 @@ cd /opt/onlyoffice-demo
 | 目的 | 命令 | 结果 |
 | --- | --- | --- |
 | 查看状态 | `sudo docker compose ps` | 两个服务应为 healthy |
-| 启动 | `sudo docker compose up -d` | 后台启动并返回提示符 |
+| 启动 IP 试运行 | `sudo docker compose -f compose.yaml -f compose.lan.yaml up -d` | 使用受限来源的 LAN 端口覆盖配置 |
 | 停止 | `sudo docker compose stop` | 容器和数据保留 |
 | 重启 | `sudo docker compose restart` | 两个服务重启 |
 | 查看最近日志 | `sudo docker compose logs --tail=100 app document-server` | 显示两个服务最近日志 |

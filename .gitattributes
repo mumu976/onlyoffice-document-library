@@ -1,1 +1,7 @@
+* text=auto
+*.md text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
 docs/evidence/*.txt text eol=lf diff

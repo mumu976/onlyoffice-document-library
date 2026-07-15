@@ -159,7 +159,9 @@ export class FileRepository {
     const metadata = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory() && uuidPattern.test(entry.name))
-        .map((entry) => this.get(entry.name)),
+        .map((entry) =>
+          this.#readMetadata(this.#fileDirectory(entry.name), entry.name),
+        ),
     );
     return metadata.sort(
       (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
@@ -167,6 +169,10 @@ export class FileRepository {
   }
 
   async get(id) {
+    return (await this.readFile(id)).metadata;
+  }
+
+  async readFile(id) {
     const fileDir = this.#fileDirectory(id);
     let directoryStat;
     try {
@@ -182,7 +188,7 @@ export class FileRepository {
       this.#contentPath(fileDir, metadata.extension),
     );
     if (sha256(content) !== metadata.sha256) throw storageCorrupt();
-    return metadata;
+    return { metadata, content };
   }
 
   async create({ name, type }) {
@@ -200,13 +206,7 @@ export class FileRepository {
   }
 
   async readContent(id) {
-    const metadata = await this.get(id);
-    const fileDir = this.#fileDirectory(id);
-    try {
-      return await readFile(this.#contentPath(fileDir, metadata.extension));
-    } catch {
-      throw storageCorrupt();
-    }
+    return (await this.readFile(id)).content;
   }
 
   async replaceContent(id, buffer) {

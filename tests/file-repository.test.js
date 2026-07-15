@@ -243,6 +243,18 @@ test("lists valid repository entries newest first and ignores other entries", as
   );
 });
 
+test("lists metadata without reading document content", async (t) => {
+  const { repository, storageDir } = await createFixture(t);
+  const created = await repository.create({ name: "列表性能", type: "word" });
+  await unlink(path.join(storageDir, created.id, "content.docx"));
+
+  assert.deepEqual(await repository.list(), [created]);
+  await assert.rejects(
+    repository.get(created.id),
+    (error) => error.code === "STORAGE_CORRUPT" && error.status === 500,
+  );
+});
+
 test("rejects metadata timestamps that are not canonical ISO 8601", async (t) => {
   const { repository, storageDir } = await createFixture(t);
   const created = await repository.create({ name: "时间格式", type: "word" });

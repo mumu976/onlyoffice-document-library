@@ -26,7 +26,7 @@
 
 ### callback 并发控制
 
-`CallbackService` 在同一文件互斥锁内读取当前 metadata，再比较 callback key。只有 key 严格等于当前 `<id>-<revision>` 才下载并替换内容。状态 1/4 仍按 ONLYOFFICE 生命周期维护演示用活动状态。这样可以拒绝迟到或重放的旧保存，同时保留现有 JWT、下载 origin 白名单、大小限制和 OOXML 校验。
+`ActiveFileRegistry` 除活动状态外还记录状态 1 callback 对应的 document key，并在会话关闭后保留进程内最新 key，防止更旧的状态 1 重新激活。状态 2/6 只有在 key 严格等于当前活动编辑会话 key 时才下载并替换内容；状态 4 也只能关闭相同 key 的活动会话。这样既允许同一编辑会话连续多次强制保存，也能在新会话接管后拒绝迟到或重放的旧保存，同时保留现有 JWT、下载 origin 白名单、大小限制和 OOXML 校验。应用重启会丢失内存态并安全拒绝未重新建立状态 1 的保存，这是演示项目不引入持久化协调服务的明确边界。
 
 ### 仓储读取
 
@@ -49,11 +49,10 @@
 
 ## 验收标准
 
-1. 旧 revision callback 的回归测试先失败，修复后通过，且不下载、不写入文件。
+1. 旧活动会话 callback 的回归测试先失败，修复后通过，且不下载、不写入文件；同一活动 key 的连续强制保存仍可通过。
 2. 文件列表不读取正文，单次下载不重复完整校验。
 3. `/health`、`/health/live` 正常返回；readiness 成功返回 200、失败返回 503。
 4. 默认 Compose 只监听 `127.0.0.1`；LAN 覆盖文件能生成 0.0.0.0 发布端口。
 5. README 能在快速启动、新手教程、开发文档之间清晰导航。
 6. GitHub Actions 和 Dependabot 配置语法完整，文本换行规则覆盖 Markdown、JavaScript、JSON 和 YAML。
 7. `npm test`、覆盖率、生产依赖审计、Compose 配置解析和相对文档链接检查全部通过。
-

@@ -6,6 +6,12 @@
 
 ## 选择你的使用方式
 
+### 我想先快速跑起来
+
+已经安装 Docker，只想尽快完成第一次 Word 和 Excel 编辑：
+
+➡️ [10 分钟快速启动](docs/quick-start.md)
+
 ### 我只想在 Windows 电脑上使用
 
 从安装 Docker Desktop、下载项目到完成第一次 Word 和 Excel 编辑，按下面的指南逐步操作：
@@ -39,5 +45,6 @@
 - 重新打开、下载和删除文件；
 - JWT 编辑配置、保存回调验证和 OOXML 文件校验；
 - Windows Docker Desktop 与 Ubuntu Docker Compose 部署。
+- 默认端口只监听本机；Linux 可信 IP 试运行使用单独的 LAN 覆盖配置。
 
-项目自动化检查命令是 `npm test`。此前 Word、Excel 的实际操作结果与截图见[本地演示与验收记录](docs/demo-guide.md)。
+项目自动化检查命令是 `npm run check`。此前 Word、Excel 的实际操作结果与截图见[本地演示与验收记录](docs/demo-guide.md)，重要变化见[更新记录](CHANGELOG.md)。

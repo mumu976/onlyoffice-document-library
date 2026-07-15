@@ -21,23 +21,26 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function createRegistrySpy({ active = false } = {}) {
+function createRegistrySpy({ active = false, key = `${fileId}-7` } = {}) {
   const registry = new ActiveFileRegistry();
-  if (active) registry.markActive(fileId);
+  if (active) registry.markActive(fileId, key);
   const calls = { markActive: [], markInactive: [] };
   return {
     calls,
     registry: {
-      markActive(id) {
-        calls.markActive.push(id);
-        registry.markActive(id);
+      markActive(id, documentKey) {
+        calls.markActive.push([id, documentKey]);
+        return registry.markActive(id, documentKey);
       },
-      markInactive(id) {
-        calls.markInactive.push(id);
-        registry.markInactive(id);
+      markInactive(id, documentKey) {
+        calls.markInactive.push([id, documentKey]);
+        registry.markInactive(id, documentKey);
       },
       isActive(id) {
         return registry.isActive(id);
+      },
+      activeKey(id) {
+        return registry.activeKey(id);
       },
     },
   };
@@ -46,11 +49,14 @@ function createRegistrySpy({ active = false } = {}) {
 function createFixture(options = {}) {
   const replacements = [];
   const repository = options.repository ?? {
+    async get(id) {
+      return { id, revision: 7 };
+    },
     async replaceContent(id, buffer) {
       replacements.push({ id, buffer });
     },
   };
-  const registrySpy = createRegistrySpy(options.registry);
+  const registrySpy = createRegistrySpy(options.registry ?? { active: true });
   const fetchCalls = [];
   const fetchImpl = options.fetchImpl ?? (async (url, init) => {
     fetchCalls.push({ url, init });
@@ -112,7 +118,7 @@ test("status 1 marks the file active without fetching", async () => {
   const body = callbackBody(1);
 
   assert.deepEqual(await handle(fixture.service, body), { error: 0 });
-  assert.deepEqual(fixture.registryCalls.markActive, [fileId]);
+  assert.deepEqual(fixture.registryCalls.markActive, [[fileId, body.key]]);
   assert.deepEqual(fixture.registryCalls.markInactive, []);
   assert.equal(fixture.registry.isActive(fileId), true);
   assert.deepEqual(fixture.fetchCalls, []);
@@ -125,9 +131,34 @@ test("status 4 marks the file inactive", async () => {
 
   assert.deepEqual(await handle(fixture.service, body), { error: 0 });
   assert.deepEqual(fixture.registryCalls.markActive, []);
-  assert.deepEqual(fixture.registryCalls.markInactive, [fileId]);
+  assert.deepEqual(fixture.registryCalls.markInactive, [[fileId, body.key]]);
   assert.equal(fixture.registry.isActive(fileId), false);
   assert.deepEqual(fixture.fetchCalls, []);
+});
+
+test("an old status 4 callback does not close a newer active session", async () => {
+  const fixture = createFixture({
+    registry: { active: true, key: `${fileId}-8` },
+  });
+  const body = callbackBody(4, { key: `${fileId}-7` });
+
+  assert.deepEqual(await handle(fixture.service, body), { error: 0 });
+  assert.equal(fixture.registry.isActive(fileId), true);
+  assert.equal(fixture.registry.activeKey(fileId), `${fileId}-8`);
+  assert.deepEqual(fixture.fetchCalls, []);
+});
+
+test("does not reactivate an older key after a newer session closes", async () => {
+  const fixture = createFixture({
+    registry: { active: true, key: `${fileId}-8` },
+  });
+  const closeNewer = callbackBody(4, { key: `${fileId}-8` });
+  const reopenOlder = callbackBody(1, { key: `${fileId}-7` });
+
+  assert.deepEqual(await handle(fixture.service, closeNewer), { error: 0 });
+  assert.equal(fixture.registry.isActive(fileId), false);
+  assert.deepEqual(await handle(fixture.service, reopenOlder), { error: 1 });
+  assert.equal(fixture.registry.isActive(fileId), false);
 });
 
 test("status 2 downloads from the trusted origin, replaces content, then marks inactive", async () => {
@@ -142,7 +173,7 @@ test("status 2 downloads from the trusted origin, replaces content, then marks i
   assert.deepEqual(fixture.replacements, [
     { id: fileId, buffer: Buffer.from("saved document") },
   ]);
-  assert.deepEqual(fixture.registryCalls.markInactive, [fileId]);
+  assert.deepEqual(fixture.registryCalls.markInactive, [[fileId, body.key]]);
   assert.equal(fixture.registry.isActive(fileId), false);
 });
 
@@ -290,6 +321,18 @@ test("rejects a key that does not belong to the callback file", async () => {
   assert.deepEqual(fixture.replacements, []);
 });
 
+test("rejects a stale revision callback before downloading or writing", async () => {
+  const fixture = createFixture({
+    registry: { active: true, key: `${fileId}-8` },
+  });
+  const body = callbackBody(2, { key: `${fileId}-7` });
+
+  assert.deepEqual(await handle(fixture.service, body), { error: 1 });
+  assert.deepEqual(fixture.fetchCalls, []);
+  assert.deepEqual(fixture.replacements, []);
+  assert.deepEqual(fixture.registryCalls.markInactive, []);
+});
+
 test("rejects an untrusted download origin without fetching or leaking its query", async () => {
   const fixture = createFixture();
   const body = callbackBody(2, {
@@ -365,6 +408,9 @@ test("serializes two status 6 saves for the same file through the keyed mutex", 
   let maximumInFlight = 0;
   let replacements = 0;
   const repository = {
+    async get(id) {
+      return { id, revision: 7 };
+    },
     async replaceContent() {
       replacements += 1;
       inFlight += 1;

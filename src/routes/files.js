@@ -67,8 +67,7 @@ export function createFilesRouter({
   });
 
   router.get("/:id/content", async (request, response) => {
-    const metadata = await repository.get(request.params.id);
-    const content = await repository.readContent(request.params.id);
+    const { metadata, content } = await repository.readFile(request.params.id);
     response.set({
       "Content-Type": mimeByExtension[metadata.extension],
       "Content-Disposition":

@@ -226,6 +226,66 @@ test("exposes health, public config, and the complete file CRUD API", async (t) 
   await request(app).get("/api/files").expect(200, { data: [] });
 });
 
+test("downloads a file through one repository read", async (t) => {
+  const blankDocx = await readFile(templateUrls.docx);
+  let reads = 0;
+  const metadata = expectedMetadata("单次读取", "docx", blankDocx);
+  const repository = {
+    async readFile(id) {
+      reads += 1;
+      assert.equal(id, fileId);
+      return { metadata, content: blankDocx };
+    },
+    async get() {
+      assert.fail("download must not perform a separate metadata read");
+    },
+    async readContent() {
+      assert.fail("download must not perform a second content read");
+    },
+  };
+  const { app } = await createFixture(t, { repository });
+
+  const response = await request(app)
+    .get(`/api/files/${fileId}/content`)
+    .buffer(true)
+    .parse(parseBinary)
+    .expect(200);
+
+  assert.equal(reads, 1);
+  assert.deepEqual(response.body, blankDocx);
+});
+
+test("exposes liveness and readiness without leaking dependency errors", async (t) => {
+  let readinessChecks = 0;
+  const ready = await createFixture(t, {
+    readinessService: {
+      async check() {
+        readinessChecks += 1;
+      },
+    },
+  });
+
+  await request(ready.app).get("/health/live").expect(200, {
+    data: { status: "ok" },
+  });
+  await request(ready.app).get("/health/ready").expect(200, {
+    data: { status: "ready" },
+  });
+  assert.equal(readinessChecks, 1);
+
+  const notReady = await createFixture(t, {
+    readinessService: {
+      async check() {
+        throw new Error("internal dependency secret");
+      },
+    },
+  });
+  const response = await request(notReady.app).get("/health/ready").expect(503, {
+    error: { code: "SERVICE_NOT_READY", message: "服务尚未就绪" },
+  });
+  assert.equal(JSON.stringify(response.body).includes("internal dependency secret"), false);
+});
+
 test("serves the document library page and editor wrapper", async (t) => {
   const { app } = await createFixture(t);
 
@@ -386,7 +446,7 @@ test("returns a stable not-found envelope for unknown file IDs", async (t) => {
 test("does not delete a file while it is active", async (t) => {
   const { app, repository, activeFiles } = await createFixture(t);
   await repository.create({ name: "正在编辑", type: "word" });
-  activeFiles.markActive(fileId);
+  activeFiles.markActive(fileId, `${fileId}-1`);
 
   await request(app).delete(`/api/files/${fileId}`).expect(409, {
     error: { code: "FILE_ACTIVE", message: "文件正在编辑，无法删除" },

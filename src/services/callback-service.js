@@ -37,14 +37,19 @@ export class CallbackService {
       this.#verifyCallback(fileId, body, authorization);
 
       if (status === 1) {
-        this.registry.markActive(fileId);
+        if (this.registry.markActive(fileId, body.key) === false) {
+          throw new Error("callback 文档版本已过期");
+        }
       } else if (status === 4) {
-        this.registry.markInactive(fileId);
+        this.registry.markInactive(fileId, body.key);
       } else if (saveStatuses.has(status)) {
         await this.mutex.run(fileId, async () => {
+          if (this.registry.activeKey(fileId) !== body.key) {
+            throw new Error("callback 文档版本已过期");
+          }
           const buffer = await this.#download(body.url);
           await this.repository.replaceContent(fileId, buffer);
-          if (status === 2) this.registry.markInactive(fileId);
+          if (status === 2) this.registry.markInactive(fileId, body.key);
         });
       }
 

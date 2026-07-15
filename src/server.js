@@ -7,6 +7,7 @@ import { ActiveFileRegistry } from "./services/active-file-registry.js";
 import { CallbackService } from "./services/callback-service.js";
 import { EditorConfigService } from "./services/editor-config-service.js";
 import { KeyedMutex } from "./services/keyed-mutex.js";
+import { ReadinessService } from "./services/readiness-service.js";
 
 function listen(app, port) {
   return new Promise((resolve, reject) => {
@@ -65,12 +66,17 @@ export async function startServer({
   });
 
   await repository.init();
+  const readinessService = new ReadinessService({
+    repository,
+    documentServerInternalUrl: config.documentServerInternalUrl,
+  });
   const app = createApp({
     config,
     repository,
     editorConfigService,
     activeFiles,
     callbackService,
+    readinessService,
     logger,
   });
   const server = await listen(app, config.port);

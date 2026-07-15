@@ -1,0 +1,8 @@
+services:
+  document-server:
+    ports: !override
+      - "8080:80"
+
+  app:
+    ports: !override
+      - "3000:3000"

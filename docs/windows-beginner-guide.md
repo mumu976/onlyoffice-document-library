@@ -166,6 +166,8 @@ docker compose config --quiet
 
 没有输出并回到提示符，表示 `.env` 和 `compose.yaml` 可以解析。如果这里报错，应先修复配置，不要继续启动。
 
+默认配置只让 3000、8080 监听这台 Windows 电脑，局域网其他设备不能直接访问。这是有意设置的安全默认值。
+
 ### 2. 构建并启动两个服务
 
 ```powershell
@@ -194,10 +196,11 @@ docker compose logs --tail=150 app document-server
 
 ```powershell
 curl.exe -fsS http://localhost:3000/health
+curl.exe -fsS http://localhost:3000/health/ready
 curl.exe -fsS http://localhost:8080/healthcheck
 ```
 
-预期第一条返回包含 `"status":"ok"` 的 JSON，第二条返回 `true`。这说明文件服务和编辑器服务都已经准备好。
+预期第一条返回包含 `"status":"ok"`，第二条返回包含 `"status":"ready"`，第三条返回 `true`。这说明应用进程、存储和编辑器服务都已经准备好。
 
 ## 六、实际完成 Word 和 Excel 验收
 
@@ -315,7 +318,7 @@ docker compose logs --tail=150 document-server
 Select-String -Path .env -Pattern '^DOCUMENT_SERVER_PUBLIC_URL='
 ```
 
-本机地址应是 `http://localhost:8080`。浏览器开发者工具的 Console 和 Network 中如果出现 `api.js`、iframe、JWT 或 mixed content 错误，再按[故障排查手册](troubleshooting.md)处理。
+本机地址应是 `http://localhost:8080`。`/health` 只说明应用进程可响应，`/health/ready` 还会检查存储和 Document Server。浏览器开发者工具的 Console 和 Network 中如果出现 `api.js`、iframe、JWT 或 mixed content 错误，再按[故障排查手册](troubleshooting.md)处理。
 
 ### 修改后重新打开仍是旧内容
 
