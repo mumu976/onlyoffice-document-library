@@ -1,6 +1,6 @@
 # Ubuntu Docker Compose 部署
 
-目标环境为 Ubuntu 22.04/24.04 x86_64。官方 Docs Linux Docker 基线为双核 2 GHz、4 GB RAM、40 GB 磁盘和 4 GB Swap，见[官方要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)。实际容量按并发编辑数和文档大小压测。Docker Engine 仓库流程以 [Docker 官方 Ubuntu 安装文档](https://docs.docker.com/engine/install/ubuntu/) 为准。
+目标环境为 Ubuntu 22.04/24.04 x86_64。2026-07-15 复核时，[ONLYOFFICE Linux 系统要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)列出的最低值为单核 2 GHz、至少 2 GB RAM、40 GB 磁盘和至少 4 GB Swap；[ONLYOFFICE Docker 安装说明](https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx)给出双核 2 GHz、4 GB RAM、40 GB 磁盘和 4 GB Swap 的更保守基线。本项目的完整双容器部署采用后者作为起步建议，实际容量仍须按并发编辑数、文档类型和大小压测。Docker Engine 仓库流程以 [Docker 官方 Ubuntu 安装文档](https://docs.docker.com/engine/install/ubuntu/) 为准。
 
 ## Docker Engine 与 Compose
 

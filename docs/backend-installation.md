@@ -1,19 +1,40 @@
 # 后端安装与 REST API
 
+这份文档面向需要单独运行、接入或维护 Express 后端的开发和运维人员。如果你只是想把完整系统跑起来，不需要先执行本页的原生 Node 命令，请使用 [Windows 新手指南](windows-beginner-guide.md) 或 [Linux 新手部署指南](linux-beginner-guide.md)，由 Docker Compose 同时启动后端和 ONLYOFFICE Docs。
+
+后端本身不编辑 Office 正文。它负责文件列表和存储、编辑配置、JWT、ONLYOFFICE 保存回调以及下载；浏览器编辑器由独立的 Document Server 提供。因此“后端健康”只证明 3000 端口可用，不代表 Word/Excel 编辑器已经可用。
+
 ## 先决条件与启动
 
-Node.js 24（`package.json` engines）、`templates/blank.docx`、`templates/blank.xlsx` 和至少 32 字符的 `JWT_SECRET`。原生启动：
+原生启动适合开发和调试，需要 Node.js 24、可访问的 ONLYOFFICE Document Server、`templates/blank.docx`、`templates/blank.xlsx` 和至少 32 字符的 `JWT_SECRET`。
+
+在 Windows PowerShell 中进入项目目录，安装依赖、生成模板并创建本机配置：
 
 ```powershell
 npm ci
 npm run templates
 Copy-Item .env.example .env
-# 编辑 .env，替换 JWT_SECRET
 npm test
-npm start
 ```
 
-Linux 可执行 `npm ci && npm run templates && npm test && npm start`。默认监听 `0.0.0.0:3000`。
+打开 `.env`，至少确认三个 URL 与你的实际网络一致，并将 `JWT_SECRET` 换成随机值。然后让 Node 24 明确读取该文件：
+
+```powershell
+node --env-file=.env src/server.js
+```
+
+成功时看到监听日志；另开一个 PowerShell 执行 `curl.exe -fsS http://localhost:3000/health`，应返回 `{"data":{"status":"ok"}}`。
+
+Linux 原生调试使用同样的读取方式：
+
+```bash
+npm ci
+npm run templates
+npm test
+node --env-file=.env src/server.js
+```
+
+`npm start` 只执行 `node src/server.js`，不会自动读取 `.env`。只有环境变量已经由当前 shell、systemd、容器或其他进程管理器注入时才直接使用 `npm start`。默认监听 `0.0.0.0:3000`。
 
 ## 环境变量
 

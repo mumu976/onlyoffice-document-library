@@ -1,6 +1,7 @@
 # ONLYOFFICE 集成调研报告
 
-**调研日期：2026-07-14**
+- 初始调研日期：2026-07-14
+- 部署资料复核日期：2026-07-15
 
 ## 结论
 
@@ -20,7 +21,7 @@ Docs 不是 DocSpace 或 Workspace：DocSpace 是带房间、权限和协作能�
 
 Compose 固定 `onlyoffice/documentserver:9.4.0.1`，避免 `latest` 漂移；可用标签以 [Docker Hub 官方标签页](https://hub.docker.com/r/onlyoffice/documentserver/tags) 为准。该标签是 2026-07-14 的项目锁定值，不代表未来仍为最新。
 
-官方 Linux Docker 基线为双核 2 GHz、4 GB RAM、40 GB 可用磁盘和 4 GB Swap；见 [Linux 系统要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)。这是启动基线，不是并发容量承诺；并发编辑数、文档大小和转换任务需要额外压测。
+2026-07-15 复核时，ONLYOFFICE 的 [Linux 系统要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)列出的最低值为单核 2 GHz、至少 2 GB RAM、40 GB 可用磁盘和至少 4 GB Swap，并另外给出按并发活动用户分档的参考配置；[Docker 安装说明](https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx)仍给出双核 2 GHz、4 GB RAM、40 GB 磁盘和 4 GB Swap 的更保守基线。本项目的新手部署采用后者作为完整双容器环境的起步建议。这些数字都不是并发容量承诺，实际并发编辑数、文档类型、大小和转换任务需要压测。
 
 Community Edition 的官方定位是本地服务器部署、适合小团队/个人使用；许可、支持和版本限制以 [官方 Docker/Community 说明](https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx) 和 [官方 DocumentServer 版本比较](https://github.com/ONLYOFFICE/DocumentServer#onlyoffice-document-server-editions) 为准。因此生产 sizing 不能把本演示基线当作企业并发或支持承诺。本项目自身没有登录鉴权、用户权限、分享、版本历史、数据库或对象存储，公网必须先接入已认证反向代理。
 
