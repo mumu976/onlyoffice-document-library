@@ -1,101 +1,64 @@
-# Linux 新手部署指南：Ubuntu 服务器从零运行 ONLYOFFICE
+# Ubuntu 服务器部署 ONLYOFFICE：从零到可以编辑 Word、Excel
 
-这份指南面向第一次接触 Linux 服务器的使用者。你不需要先学会 Node.js，也不需要自己安装数据库；Docker Compose 会启动文件管理应用和 ONLYOFFICE Docs 两个服务。
+这份指南适合第一次部署 Linux 服务的人。它不会只给出一长串命令，而会说明每组命令在哪里执行、解决什么问题，以及怎样判断结果是否正确。
 
-主流程先完成“IP 试运行”：只允许你自己的电脑访问服务器的 3000、8080 端口，确认 Word 和 Excel 能编辑保存。正式互联网使用不是把端口开放给所有人，而是继续配置域名、HTTPS 和登录认证。
+部署完成后，服务器上会运行两个容器：
 
-## 先理解这次要搭建什么
+| 服务 | 默认端口 | 作用 |
+| --- | --- | --- |
+| `app` | 3000 | 文件列表、新建、上传、下载、删除和保存回调 |
+| `document-server` | 8080 | 浏览器中的 ONLYOFFICE Word、Excel 编辑器 |
 
-浏览器会访问两个地址：
+浏览器必须同时访问这两个端口。只开放 3000 会出现“文件列表能打开，但编辑器空白”的情况。
 
-- `http://服务器地址:3000`：文件列表、新建、上传、下载和删除；
-- `http://服务器地址:8080`：ONLYOFFICE Word/Excel 编辑器资源。
+## 先选择你的部署阶段
 
-服务器内部还有两个容器地址：`http://app:3000` 和 `http://document-server`。它们已经写在 `compose.yaml` 中，新手部署不要修改。
+本指南把部署分成两个阶段，不要混在一起操作：
 
-如果浏览器只能访问 3000、不能访问 8080，文件列表可能出现，但编辑器无法加载；因此 IP 试运行时两个端口都要对你的电脑放行。
+1. **IP 试运行**：使用 `http://服务器IP:3000` 和 `http://服务器IP:8080`，仅允许你自己的电脑或可信局域网访问，用来确认功能正常。
+2. **正式上线**：使用两个 HTTPS 域名、认证反向代理和备份策略，不再把 3000、8080 直接开放给互联网。
 
-## 第 1 步：准备合适的服务器
+这个项目没有登录、用户权限和身份审计。IP 试运行不能直接变成公网正式环境。
 
-**要做什么：** 确认服务器的系统、架构和资源足以运行完整演示。
+## 一、准备 Ubuntu 服务器
 
-**在哪里操作：** 云平台购买页、虚拟机管理界面或公司服务器管理平台。
+### 1. 推荐配置
 
-建议准备：
+本项目验证的系统范围是 Ubuntu Server 22.04/24.04 x86_64。建议从下面的配置起步：
 
-- Ubuntu Server 22.04 LTS 或 24.04 LTS，64 位 x86_64/amd64；
-- 2 核 CPU 或更多；
-- 4 GB 内存或更多；
-- 至少 40 GB 可用磁盘；
-- 至少 4 GB Swap；
-- 一个浏览器能够访问的固定内网地址或公网 IPv4；
-- 你自己的电脑有 SSH 客户端，例如 Windows Terminal。
+- 2 核 CPU；
+- 4 GB 内存；
+- 40 GB 以上可用磁盘；
+- 4 GB Swap；
+- 固定的局域网 IP 或公网 IPv4。
 
-这些是用于本项目完整 Docker 环境的保守起步值，不是并发容量承诺。ONLYOFFICE 当前系统要求页列出更低的单机最低值，同时说明实际需求取决于并发打开文档数、类型和大小；官方 Docker 安装页给出双核、4 GB RAM、40 GB 磁盘和 4 GB Swap 的更保守基线。部署前请核对 [ONLYOFFICE Linux 系统要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)和 [ONLYOFFICE Docker 安装说明](https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx)。
+ONLYOFFICE 的系统要求会随版本调整。2026-07-15 复核时，[Linux 系统要求](https://helpcenter.onlyoffice.com/docs/installation/docs-community-sys-reqs-linux.aspx)列出的单机最低值低于上述建议，而 [Docker 安装说明](https://helpcenter.onlyoffice.com/docs/installation/docs-community-install-docker.aspx)采用双核、4 GB RAM、40 GB 磁盘和 4 GB Swap 的更保守基线。本项目同时运行应用和 Document Server，因此采用后者。实际并发能力仍取决于打开文档的人数、文档大小和转换任务。
 
-**成功时看到什么：** 云平台实例状态为“运行中”，你能看到服务器 IP、SSH 用户名和密钥或密码。
+### 2. 云服务器先设置安全组
 
-**如果不成功：**
+这一步在云平台网页控制台操作，不是在 Ubuntu 终端操作。
 
-- ARM/aarch64 服务器不属于本指南验证范围，优先选择 x86_64/amd64；
-- 2 GB 内存机器即使能启动，也可能在初始化或编辑时内存不足；
-- 系统盘不足 40 GB 时，镜像、日志和文档会很快挤满磁盘。
+先查询你当前电脑的公网 IPv4，然后只添加以下入站规则：
 
-## 第 2 步：设置最小化网络访问范围
+| 端口 | 来源 | 说明 |
+| --- | --- | --- |
+| TCP 22 | `你的电脑公网IP/32` | SSH 登录 |
+| TCP 3000 | `你的电脑公网IP/32` | IP 试运行的文件管理页面 |
+| TCP 8080 | `你的电脑公网IP/32` | IP 试运行的编辑器 |
 
-**要做什么：** 只让你的电脑能连接 SSH 和试运行端口，避免把无登录的演示直接暴露给所有互联网用户。
+不要把 3000、8080 的来源设为 `0.0.0.0/0`。如果服务器只在局域网使用，可以把来源设为可信网段，例如 `192.168.1.0/24`。
 
-**在哪里操作：** 云平台“安全组”“防火墙”“入站规则”页面；这不是 Linux 终端。
+### 3. 连接服务器并检查环境
 
-先查询你当前电脑的公网 IPv4。可以在浏览器搜索“我的 IP”，记为 `你的电脑公网IP`。在云平台为服务器添加以下入站规则：
-
-| 协议 | 端口 | 来源 | 用途 |
-| --- | --- | --- | --- |
-| TCP | 22 | `你的电脑公网IP/32` | SSH 登录 |
-| TCP | 3000 | `你的电脑公网IP/32` | 文档库 IP 试运行 |
-| TCP | 8080 | `你的电脑公网IP/32` | 编辑器 IP 试运行 |
-
-不要把 3000、8080 的来源设为 `0.0.0.0/0`。如果是在可信局域网内测试，可以使用你的局域网网段，例如 `192.168.1.0/24`。
-
-**成功时看到什么：** 规则已启用，来源列显示你的单个 IP `/32` 或明确的可信网段。
-
-**如果不成功：**
-
-- 家庭宽带公网 IP 可能变化，之后连不上时先核对来源地址；
-- 有些平台同时存在实例防火墙和子网 ACL，两层都需要允许；
-- 没有上游安全组或硬件防火墙时，不要在公网主机上直接进行本指南的 IP 试运行，先让运维人员设置网络边界。
-
-## 第 3 步：连接 Ubuntu 服务器
-
-**要做什么：** 从自己的电脑进入服务器命令行。
-
-**在哪里操作：** 你的 Windows Terminal、PowerShell，或云平台提供的网页控制台。
-
-Windows Terminal 中的常见连接方式是：
+在自己的 Windows Terminal 或 PowerShell 中连接服务器：
 
 ```powershell
-ssh 用户名@服务器IP
+ssh ubuntu@你的服务器IP
 ```
 
-例如云平台给出的用户是 `ubuntu`、服务器 IP 是 `203.0.113.10`，则命令为 `ssh ubuntu@203.0.113.10`。这里的示例 IP 不能直接使用，要换成你控制台中看到的真实 IP。
+`ubuntu` 是很多云平台的默认用户名，但要以你的云平台控制台为准。登录成功后，提示符通常类似 `ubuntu@server:~$`。从这里开始，除非特别说明，命令都在 Ubuntu 终端执行。
 
-首次连接会询问是否信任主机指纹。先和云平台显示的信息核对，再输入 `yes`。如果使用私钥，按云平台提供的 SSH 命令操作。
-
-**成功时看到什么：** 提示符变成类似 `ubuntu@server:~$`，说明后面的命令是在 Linux 服务器执行，而不是在你的 Windows 电脑执行。
-
-**如果不成功：**
-
-- `Connection timed out`：检查安全组 22 端口、服务器 IP 和实例状态；
-- `Permission denied`：检查用户名、密码或私钥，不要反复猜测触发封禁；
-- 仍无法连接时，使用云平台网页控制台进入服务器。
-
-## 第 4 步：检查系统、架构、内存和磁盘
-
-**要做什么：** 在安装前确认拿到的是预期服务器。
-
-**在哪里操作：** 已连接的 Ubuntu 终端。
-
-执行：
+先检查系统和资源：
 
 ```bash
 cat /etc/os-release
@@ -105,23 +68,30 @@ df -h /
 swapon --show
 ```
 
-**成功时看到什么：**
+继续部署前应确认：
 
-- `VERSION_ID` 为 `22.04` 或 `24.04`；
-- `uname -m` 为 `x86_64`；
+- `VERSION_ID` 是 `22.04` 或 `24.04`；
+- `uname -m` 是 `x86_64`；
 - 内存约 4 GB 或更多；
-- 根分区可用空间不少于约 40 GB；
-- `swapon --show` 能看到约 4 GB 或更多 Swap。
+- 根分区至少还有约 40 GB；
+- Swap 已启用。
 
-**如果不成功：** 先扩容或更换实例。不要在明显资源不足的服务器上继续，再把初始化失败误判为代码问题。
+如果服务器明显不满足这些条件，应先扩容。Document Server 初始化失败时，内存和磁盘不足比代码错误更常见。
 
-## 第 5 步：安装 Docker Engine 和 Compose
+## 二、安装 Docker Engine 和 Compose
 
-**要做什么：** 使用 Docker 官方 apt 仓库安装 Docker Engine、Buildx 和 Compose 插件。
+如果下面两条命令已经正常显示版本，可以跳到“部署项目”：
 
-**在哪里操作：** Ubuntu 终端，需要 `sudo` 权限。
+```bash
+sudo docker version
+sudo docker compose version
+```
 
-下面的命令来自 [Docker 官方 Ubuntu 安装文档](https://docs.docker.com/engine/install/ubuntu/)。先添加官方签名和软件仓库：
+如果尚未安装，使用 [Docker 官方 Ubuntu 安装流程](https://docs.docker.com/engine/install/ubuntu/)，不要混用 Ubuntu 自带的旧 `docker.io` 和独立 `docker-compose` 包。
+
+### 1. 添加 Docker 官方软件源
+
+整段复制到 Ubuntu 终端执行：
 
 ```bash
 sudo apt update
@@ -142,7 +112,9 @@ EOF
 sudo apt update
 ```
 
-命令完成后安装 Docker：
+这组命令结束时不应出现 GPG 签名错误或找不到仓库。若出现冲突包提示，请先按 Docker 官方文档的“Uninstall old versions”处理旧的 `docker.io`、`docker-compose`、`containerd` 或 `runc`，不要直接强制覆盖。
+
+### 2. 安装并验证 Docker
 
 ```bash
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
@@ -151,90 +123,62 @@ sudo docker run --rm hello-world
 sudo docker compose version
 ```
 
-**成功时看到什么：** `hello-world` 输出欢迎信息，最后一条显示 `Docker Compose version`。
+看到 `Hello from Docker!` 和 `Docker Compose version` 才算安装成功。
 
-**如果不成功：**
+本指南统一使用 `sudo docker`，这样不会为了少输入几个字符就把当前用户加入具有 root 级权限的 `docker` 组。如果你明确理解风险后仍要配置非 root 使用方式，请阅读 [Docker Linux 安装后说明](https://docs.docker.com/engine/install/linux-postinstall)。
 
-- apt 提示冲突包时，按 Docker 官方页面的“Uninstall old versions”处理 `docker.io`、旧 `docker-compose` 等包；
-- 下载域名失败时检查服务器 DNS、代理和外网访问；
-- 本指南统一使用 `sudo docker`，暂时不把普通用户加入 `docker` 组，因为该组具有接近 root 的权限；原理见 [Docker Linux 安装后说明](https://docs.docker.com/engine/install/linux-postinstall)。
+## 三、部署项目
 
-## 第 6 步：下载项目到固定目录
+### 1. 把项目放到 `/opt/onlyoffice-demo`
 
-**要做什么：** 从项目仓库获取经过版本管理的文件。
-
-**在哪里操作：** Ubuntu 终端。
-
-先确认目标目录不存在：
+先创建一个由当前登录用户管理的目录，再克隆项目。不要使用 `sudo git clone`，否则整个仓库会归 root，后续更新和查看状态都需要 sudo。
 
 ```bash
-sudo test ! -e /opt/onlyoffice-demo && echo "目标目录可用"
-```
-
-看到“目标目录可用”后，再下载：
-
-```bash
-sudo git clone https://github.com/mumu976/onlyoffice-document-library.git /opt/onlyoffice-demo
+sudo install -d -m 0755 -o "$USER" -g "$USER" /opt/onlyoffice-demo
+git clone https://github.com/mumu976/onlyoffice-document-library.git /opt/onlyoffice-demo
 cd /opt/onlyoffice-demo
-sudo git status --short
-sudo test -f compose.yaml && echo "项目文件完整"
+git status --short
+test -f compose.yaml && echo "项目文件完整"
 ```
 
-**成功时看到什么：** 当前目录为 `/opt/onlyoffice-demo`，Git 状态没有修改，最后显示“项目文件完整”。
+正常结果是最后显示“项目文件完整”，`git status --short` 没有输出。
 
-**如果不成功：**
+如果 `/opt/onlyoffice-demo` 已经有文件，`git clone` 会拒绝执行。这时不要删除目录；先确认它是不是旧部署，并备份 `.env`、`storage` 和 Docker 命名卷。旧环境的完整更新和回滚方法见[高级部署手册](linux-deployment.md)。
 
-- 如果目标目录已经存在，不要盲目删除；它可能包含旧文档，先执行后面的备份流程；
-- GitHub 连接失败时检查 DNS、代理和出口网络；
-- `compose.yaml` 不存在说明下载路径或仓库不正确。
+### 2. 创建 `.env` 配置
 
-## 第 7 步：创建服务器配置
-
-**要做什么：** 生成 JWT 密钥，并把浏览器实际访问的服务器地址写入 `.env`。
-
-**在哪里操作：** Ubuntu 终端，当前目录必须是 `/opt/onlyoffice-demo`。
-
-先复制模板并生成密钥：
+`.env` 是这台服务器自己的配置文件，不会提交到 GitHub。下面的命令会复制模板并自动生成 64 位十六进制 JWT 密钥：
 
 ```bash
 cd /opt/onlyoffice-demo
-sudo cp .env.example .env
-SECRET=$(openssl rand -hex 32)
-sudo sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$SECRET|" .env
+cp .env.example .env
+SECRET="$(openssl rand -hex 32)"
+sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$SECRET|" .env
 unset SECRET
 ```
 
-然后执行下面的交互式命令。提示出现后，输入浏览器访问服务器时使用的真实 IP；不要输入示例地址，也不要带 `http://`：
+接下来配置浏览器实际访问 Document Server 的地址。执行下面的命令后，根据提示输入真实服务器 IP，不要输入 `http://`，也不要使用文档中的示例 IP：
 
 ```bash
-read -r -p "请输入浏览器访问服务器时使用的 IP：" SERVER_IP
-sudo sed -i "s|^DOCUMENT_SERVER_PUBLIC_URL=.*|DOCUMENT_SERVER_PUBLIC_URL=http://$SERVER_IP:8080|" .env
+read -r -p "请输入浏览器访问这台服务器时使用的 IP：" SERVER_IP
+sed -i "s|^DOCUMENT_SERVER_PUBLIC_URL=.*|DOCUMENT_SERVER_PUBLIC_URL=http://$SERVER_IP:8080|" .env
 unset SERVER_IP
-sudo grep -E '^(DOCUMENT_SERVER_PUBLIC_URL|DOCUMENT_SERVER_INTERNAL_URL|APP_INTERNAL_URL|JWT_SECRET)=' .env
+grep -E '^(DOCUMENT_SERVER_PUBLIC_URL|DOCUMENT_SERVER_INTERNAL_URL|APP_INTERNAL_URL)=' .env
 ```
 
-如果服务器只在局域网使用，就输入局域网 IP；云服务器试运行通常输入公网 IPv4。`.env` 不要提交到 Git，也不要把真实 `JWT_SECRET` 发到聊天、工单或截图里。
+检查结果应类似：
 
-**成功时看到什么：**
+```text
+DOCUMENT_SERVER_PUBLIC_URL=http://真实服务器IP:8080
+DOCUMENT_SERVER_INTERNAL_URL=http://document-server
+APP_INTERNAL_URL=http://app:3000
+```
 
-- `DOCUMENT_SERVER_PUBLIC_URL` 是浏览器可访问的 `http://真实地址:8080`；
-- `DOCUMENT_SERVER_INTERNAL_URL=http://document-server`；
-- `APP_INTERNAL_URL=http://app:3000`；
-- `JWT_SECRET` 是 64 个十六进制字符。
+只修改第一行的服务器地址。`document-server` 和 `app` 是 Docker Compose 内部服务名，不能替换为公网 IP。真实 `JWT_SECRET` 不要打印到公共日志、截图或工单。
 
-**如果不成功：**
+### 3. 创建持久化目录
 
-- 输入错 IP 时可以重新执行交互式命令；
-- 不要把内部地址 `document-server` 或 `app` 换成公网 IP；
-- 正式域名上线时不要直接在这里拼凑配置，转到[高级部署手册](linux-deployment.md)。
-
-## 第 8 步：创建文档存储目录并设置权限
-
-**要做什么：** 让容器内的非 root Node 用户能够写入持久化目录。
-
-**在哪里操作：** Ubuntu 终端。
-
-执行：
+用户的 Word、Excel 正文保存在 `/opt/onlyoffice-demo/storage`。应用容器以 UID 1000 运行，因此宿主目录需要对应写权限：
 
 ```bash
 cd /opt/onlyoffice-demo
@@ -244,156 +188,125 @@ sudo chmod 750 storage
 sudo ls -ld storage
 ```
 
-**成功时看到什么：** `storage` 的属主和属组数字对应 `1000 1000`，权限类似 `drwxr-x---`。
+不要用 `chmod 777`。以后从备份恢复 `storage` 后，也要重新检查属主是否为 `1000:1000`。
 
-**如果不成功：**
+## 四、启动并验证
 
-- 不能省略 `chown`：宿主目录会覆盖镜像内原有权限；
-- 不要为省事使用 `chmod 777`；
-- 以后备份文件恢复后，也需要再次检查属主和权限。
-
-## 第 9 步：检查配置并启动服务
-
-**要做什么：** 构建本项目应用，启动固定版本的 ONLYOFFICE Docs，并等待健康检查。
-
-**在哪里操作：** Ubuntu 终端。
-
-先检查 Compose 配置：
+### 1. 先检查配置，再启动
 
 ```bash
 cd /opt/onlyoffice-demo
 sudo docker compose config --quiet
-```
-
-没有输出并返回提示符表示通过。然后拉取、构建和启动：
-
-```bash
 sudo docker compose pull document-server
 sudo docker compose build app
 sudo docker compose up -d
 ```
 
-项目固定使用 `onlyoffice/documentserver:9.4.0.1`，不会自动追随 `latest`。第一次下载和初始化可能需要几分钟。
+`docker compose config --quiet` 没有输出并返回提示符，表示 Compose 和 `.env` 能正常解析。第一次拉取 `onlyoffice/documentserver:9.4.0.1` 需要下载较大的镜像，取决于服务器网络，可能持续数分钟。
 
-**成功时看到什么：** 命令返回提示符，两个服务已创建并启动。
+项目固定镜像版本而不是使用 `latest`，目的是避免未来重启时突然换成未经验证的新版本。
 
-**如果不成功：**
-
-- 镜像下载失败：检查磁盘、DNS、代理和 Docker Hub 网络；
-- `JWT_SECRET` 报错：检查 `.env` 是否存在且密钥足够长；
-- `storage` 权限错误：重新执行第 8 步。
-
-## 第 10 步：确认两个容器健康
-
-**要做什么：** 在开放浏览器前验证服务器内部状态。
-
-**在哪里操作：** Ubuntu 终端。
-
-执行：
+### 2. 等两个服务变为 healthy
 
 ```bash
 sudo docker compose ps
+```
+
+Document Server 第一次启动时通常先显示 `starting`。等待约 20～30 秒后重新执行，直到 `app` 和 `document-server` 两行都包含 `healthy`。
+
+然后分别检查应用和编辑器：
+
+```bash
 curl -fsS http://127.0.0.1:3000/health
 curl -fsS http://127.0.0.1:8080/healthcheck
 ```
 
-**成功时看到什么：**
+预期第一条返回包含 `"status":"ok"` 的 JSON，第二条返回 `true`。
 
-- `app` 和 `document-server` 都是 `healthy`；
-- 应用健康检查返回包含 `ok` 的 JSON；
-- ONLYOFFICE 健康检查返回 `true`。
-
-如果 Document Server 仍是 `starting`，等约 20 秒再检查。首次初始化可能持续几分钟。
-
-**如果不成功：**
+如果超过 5 分钟仍未健康，先看日志，不要反复删除和重建容器：
 
 ```bash
 sudo docker compose logs --tail=150 app document-server
 ```
 
-- app 报权限错误：检查 `storage`；
-- document-server 反复重启：检查内存、Swap、磁盘和日志；
-- 端口冲突：执行 `sudo ss -lntp | grep -E ':(3000|8080)\b'` 找出占用程序。
+常见判断：
 
-## 第 11 步：从自己的电脑访问并实际测试
+- app 出现 `permission denied`：重新检查 `storage` 权限；
+- document-server 反复重启：检查内存、Swap 和磁盘；
+- 3000 或 8080 被占用：执行 `sudo ss -lntp | grep -E ':(3000|8080)\b'`；
+- 拉取镜像失败：检查 DNS、代理和 Docker Hub 网络。
 
-**要做什么：** 验证网络访问、编辑器加载和文件回存完整闭环。
+### 3. 从自己的电脑完成实际验收
 
-**在哪里操作：** 你自己的电脑浏览器，不是服务器终端。
+在自己的电脑浏览器打开：
 
-1. 打开 `http://服务器IP:3000`；
-2. 新建 Word，输入一句话，等待同步，关闭并重新打开；
-3. 新建 Excel，在 A1 输入 `10`、A2 输入 `20`、A3 输入 `=SUM(A1:A2)`；
-4. 确认 A3 为 `30`，等待同步，关闭并重新打开；
-5. 下载两个文件并确认本地 Office 软件可以打开。
+```text
+http://真实服务器IP:3000
+```
 
-可以另外打开 `http://服务器IP:8080/healthcheck`，预期看到 `true`。
+按下面顺序验证，不要只确认首页能打开：
 
-**成功时看到什么：** 文件列表、Word/Excel 编辑器都能打开，重新打开后内容和公式仍存在。
+1. 新建 Word，输入一句话，等待同步提示，关闭后重新打开；
+2. 新建 Excel，在 A1 输入 `10`、A2 输入 `20`、A3 输入 `=SUM(A1:A2)`；
+3. 确认 A3 为 `30`，等待同步，关闭后重新打开；
+4. 下载 Word 和 Excel，确认本地 Office 软件能打开；
+5. 上传一个已有 `.docx` 或 `.xlsx`，确认可以编辑保存。
 
-**如果不成功：**
+如果文件列表能打开但编辑器空白，优先检查：
 
-- 服务器本机健康但电脑打不开：检查云安全组、IP 是否正确，以及你的公网 IP 是否变化；
-- 文件列表能开、编辑器空白：重点检查 8080 端口和 `.env` 中的 `DOCUMENT_SERVER_PUBLIC_URL`；
-- 能编辑但不能保存：检查 callback、JWT 和 Document Server 到 app 的内部访问，见[故障排查手册](troubleshooting.md)。
+1. 浏览器能否打开 `http://真实服务器IP:8080/healthcheck`；
+2. 云安全组是否同时允许 3000 和 8080；
+3. `.env` 中的 `DOCUMENT_SERVER_PUBLIC_URL` 是否正是浏览器正在使用的地址；
+4. 浏览器开发者工具是否出现 mixed content、脚本或 iframe 错误。
 
-## IP 试运行之后：不要直接开放公网
+更完整的症状对照表见[故障排查手册](troubleshooting.md)。
 
-这个项目没有登录和文件权限。完成测试后，建议立即在云安全组删除 3000、8080 的临时入站规则，或继续严格限制为可信 IP。
+## 五、日常启动、停止和日志
 
-只配置 UFW 不能证明 Docker 发布端口已经被限制。Docker 官方明确说明，发布的容器端口流量可能在到达 UFW 使用的链之前被转发，相关原理见 [Docker packet filtering and firewalls](https://docs.docker.com/engine/network/packet-filtering-firewalls/)。因此：
-
-1. 新手试运行优先依赖云安全组或上游硬件防火墙限制来源；
-2. 正式上线使用两个 HTTPS 域名，例如 `files.example.com` 和 `docs.example.com`；
-3. 在最外层反向代理增加登录认证；
-4. 不对互联网直接暴露 3000、8080；
-5. 配置备份、恢复验证和回滚后再上线。
-
-完整 Nginx、HTTPS、认证边界、Docker 防火墙注意事项、备份与回滚命令见 [Ubuntu/Linux 高级部署手册](linux-deployment.md)。
-
-## 日常运维命令
-
-**在哪里操作：** Ubuntu 终端，先执行 `cd /opt/onlyoffice-demo`。
-
-| 目的 | 命令 | 成功标志 |
-| --- | --- | --- |
-| 查看状态 | `sudo docker compose ps` | 两个服务均为 healthy |
-| 查看最近日志 | `sudo docker compose logs --tail=100 app document-server` | 能看到时间和服务名 |
-| 持续查看日志 | `sudo docker compose logs -f app document-server` | 按 Ctrl+C 退出，不会停止容器 |
-| 启动 | `sudo docker compose up -d` | 服务进入 running/healthy |
-| 重启 | `sudo docker compose restart` | 两个服务重新启动 |
-| 停止 | `sudo docker compose stop` | 容器保留但停止 |
-| 关闭并移除容器 | `sudo docker compose down` | storage 和命名卷保留 |
-
-不要执行 `sudo docker compose down -v`，它会删除命名卷。不要删除 `/opt/onlyoffice-demo/storage`，这里保存用户文档。
-
-## 更新前的最低备份要求
-
-更新不是直接执行 `git pull`。先确认无人编辑，再备份 `.env`、`compose.yaml`、`storage` 和 ONLYOFFICE 命名卷，并验证备份可读。最短的项目文件备份示例是：
+每次先进入项目目录：
 
 ```bash
 cd /opt/onlyoffice-demo
-sudo docker compose stop
-BACKUP_DIR="/opt/onlyoffice-backups/$(date +%Y%m%d-%H%M%S)"
-sudo mkdir -p "$BACKUP_DIR"
-sudo cp .env compose.yaml "$BACKUP_DIR/"
-sudo tar -C /opt/onlyoffice-demo -czf "$BACKUP_DIR/storage.tar.gz" storage
-sudo tar -tzf "$BACKUP_DIR/storage.tar.gz" >/dev/null
-echo "项目文件备份完成：$BACKUP_DIR"
-sudo docker compose start
 ```
 
-这还不是完整升级流程。命名卷备份、版本固定升级、恢复和回滚必须按[高级部署手册](linux-deployment.md)执行。
+然后根据目的使用对应命令：
 
-## 出问题时按这个顺序检查
+| 目的 | 命令 | 结果 |
+| --- | --- | --- |
+| 查看状态 | `sudo docker compose ps` | 两个服务应为 healthy |
+| 启动 | `sudo docker compose up -d` | 后台启动并返回提示符 |
+| 停止 | `sudo docker compose stop` | 容器和数据保留 |
+| 重启 | `sudo docker compose restart` | 两个服务重启 |
+| 查看最近日志 | `sudo docker compose logs --tail=100 app document-server` | 显示两个服务最近日志 |
+| 持续看日志 | `sudo docker compose logs -f app document-server` | 按 Ctrl+C 只退出查看，不停止服务 |
+| 移除容器 | `sudo docker compose down` | `storage` 和命名卷仍保留 |
 
-1. `sudo systemctl status docker --no-pager`：Docker 服务是否运行；
-2. `sudo docker compose config --quiet`：`.env` 和 Compose 是否有效；
-3. `sudo docker compose ps`：哪一个容器不是 healthy；
-4. `sudo docker compose logs --tail=150 app document-server`：对应服务最后的错误；
-5. `curl` 两个本机健康地址：应用内部是否正常；
-6. 云安全组来源 IP、3000 和 8080：外部网络是否放行；
-7. 浏览器 Network/Console：是 3000 页面、8080 脚本、iframe 还是 callback 失败；
-8. `.env` 的公共地址和 JWT 是否匹配当前部署。
+不要执行 `sudo docker compose down -v`，其中 `-v` 会删除命名卷。不要删除 `storage`，这里保存用户文档。
 
-按症状分类的处理方法见[故障排查手册](troubleshooting.md)。
+## 六、从试运行转为正式上线
+
+完成 IP 验收后，不要把 3000、8080 改成对 `0.0.0.0/0` 开放。正式上线至少需要：
+
+1. 文件服务域名，例如 `files.example.com`；
+2. 编辑器域名，例如 `docs.example.com`；
+3. 两个域名都使用可信 HTTPS 证书；
+4. 在文件服务前加入登录认证；
+5. 在云安全组或上游防火墙阻止互联网直接访问 3000、8080；
+6. 验证备份、恢复和固定版本回滚。
+
+只配置 Nginx 并不会自动关闭 Compose 已经发布的 3000、8080。只配置 UFW 也不一定足够：Docker 官方说明发布端口的流量可能在到达 UFW 使用的链之前被转发，见 [Docker 防火墙说明](https://docs.docker.com/engine/network/packet-filtering-firewalls/)。云服务器应优先在云安全组限制来源，并按基础设施情况补充 `DOCKER-USER` 或等效规则。
+
+域名、Nginx、HTTPS、认证边界、命名卷备份、完整恢复和回滚命令见[Ubuntu/Linux 高级部署手册](linux-deployment.md)。
+
+## 七、更新前最低限度要做什么
+
+不要在有人编辑文档时直接执行 `git pull`。更新前至少：
+
+1. 确认没有正在编辑的文件；
+2. 备份 `.env`、`compose.yaml` 和 `storage`；
+3. 备份 Document Server 的 Data、Logs 命名卷；
+4. 记录当前固定镜像版本；
+5. 验证备份归档能正常列出；
+6. 准备恢复旧 Compose 文件和同一时间点数据的回滚步骤。
+
+完整、安全的命令已集中放在[高级部署手册的备份、恢复与回滚部分](linux-deployment.md)，不要从不同教程中拼接互不对应的备份和恢复命令。

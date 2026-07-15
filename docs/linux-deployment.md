@@ -4,37 +4,57 @@
 
 ## Docker Engine 与 Compose
 
+以下流程使用 Docker 当前官方推荐的 `docker.sources` 格式。先添加仓库，再安装 Engine、Buildx 和 Compose 插件：
+
 ```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
+sudo apt update
+sudo apt install -y ca-certificates curl git openssl
 sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-docker compose version
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo docker run --rm hello-world
+sudo docker compose version
 ```
+
+本页后续命令假定操作者已经被授权访问 Docker daemon。若没有配置 Docker 用户组，请为单条 Docker 命令添加 `sudo`；不要仅为了省略 `sudo` 就把不受信任账户加入 `docker` 组，该组具有接近 root 的权限。
 
 ## 项目与 storage 权限
 
+新服务器可以直接从 GitHub 获取项目。先让当前部署用户拥有项目目录，避免整个仓库归 root：
+
 ```bash
-sudo mkdir -p /opt/onlyoffice-demo
-sudo cp -a . /opt/onlyoffice-demo/
+sudo install -d -m 0755 -o "$USER" -g "$USER" /opt/onlyoffice-demo
+git clone https://github.com/mumu976/onlyoffice-document-library.git /opt/onlyoffice-demo
 cd /opt/onlyoffice-demo
-sudo mkdir -p /opt/onlyoffice-demo/storage
-sudo chown -R 1000:1000 /opt/onlyoffice-demo/storage
 cp .env.example .env
-openssl rand -hex 32
+SECRET="$(openssl rand -hex 32)"
+sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$SECRET|" .env
+unset SECRET
+sudo mkdir -p storage
+sudo chown -R 1000:1000 storage
+sudo chmod 750 storage
 ```
 
-将随机值写入 `.env` 的 `JWT_SECRET`。IP 示例是 `DOCUMENT_SERVER_PUBLIC_URL=http://192.168.1.20:8080`，域名示例是 `DOCUMENT_SERVER_PUBLIC_URL=https://docs.example.com`。`DOCUMENT_SERVER_INTERNAL_URL=http://document-server`、`APP_INTERNAL_URL=http://app:3000` 保持 Compose 服务名。
+IP 试运行示例是 `DOCUMENT_SERVER_PUBLIC_URL=http://192.168.1.20:8080`，域名正式环境示例是 `DOCUMENT_SERVER_PUBLIC_URL=https://docs.example.com`。`DOCUMENT_SERVER_INTERNAL_URL=http://document-server`、`APP_INTERNAL_URL=http://app:3000` 保持 Compose 服务名。`.env` 不提交 Git，真实 `JWT_SECRET` 不进入终端录屏、日志或工单。
 
 浏览器访问 Docs 后，保存 callback 里的下载 URL 可能使用公共域名。后端只接受 `DOCUMENT_SERVER_PUBLIC_URL` 和 `DOCUMENT_SERVER_INTERNAL_URL` 两个 origin，并把受信任的公共 URL 保留路径/查询后改写到内部地址下载；因此公共 URL 必须准确配置，不能用宽泛域名或通配规则代替。
 
 **必须先执行 `mkdir` 和 `chown 1000:1000`。** Dockerfile 对镜像内 `/app/storage` 的 chown 会被 `./storage:/app/storage` bind mount 遮蔽；宿主机属主不正确时 Node 用户无法写入。
 
-## 启动、健康与防火墙
+## 启动与健康检查
 
 ```bash
 docker compose config
@@ -51,7 +71,9 @@ docker compose restart
 docker compose down
 ```
 
-LAN 演示端口：
+## LAN/IP 试运行与防火墙边界
+
+LAN 演示可以限制可信来源：
 
 ```bash
 sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
@@ -59,16 +81,58 @@ sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
 sudo ufw enable
 ```
 
+这些 UFW 命令不是充分的 Docker 端口保护。Docker 发布端口的流量可能在到达 UFW 使用的链之前已经被转发；云服务器必须同时使用云安全组限制 3000/8080 的来源，裸机则按网络架构配置 `DOCKER-USER` 或等效的上游防火墙规则。原理与建议以 [Docker packet filtering and firewalls](https://docs.docker.com/engine/network/packet-filtering-firewalls/) 为准。
+
 `ALLOW_PRIVATE_IP_ADDRESS=true` 是因为 Document Server 要从 Compose 网络访问私有地址 `http://app:3000`。该开关也扩大了 Document Server 的服务端请求范围：一旦攻击者能影响待获取 URL，就可能探测或访问宿主机、LAN 和其他私网服务，形成 SSRF 或横向访问。Compose 默认网络只隔离容器命名空间，**不会**阻断容器到宿主机或 LAN 的出站连接；因此保持 `ALLOW_META_IP_ADDRESS` 禁用、只让两个服务加入项目网络、限制 3000/8080 入站，并在基础设施层按需限制 Document Server 出站。该设置绝不是 Express callback URL origin 白名单或认证反向代理的替代品。
 
 ## 双域名 Nginx HTTPS
 
-`files.example.com` 反代应用 3000，`docs.example.com` 反代 Docs 8080：
+下面示例假定 Nginx 安装在同一台宿主机：`files.example.com` 反代应用 3000，`docs.example.com` 反代 Docs 8080。
+
+在正式环境中，必须先把 `compose.yaml` 的端口映射从所有网卡改为仅宿主机回环地址：
+
+```yaml
+services:
+  document-server:
+    ports:
+      - "127.0.0.1:8080:80"
+  app:
+    ports:
+      - "127.0.0.1:3000:3000"
+```
+
+修改后重新解析并应用 Compose，确认两个端口只监听回环地址：
+
+```bash
+docker compose config --quiet
+docker compose up -d
+sudo ss -lntp | grep -E '127\.0\.0\.1:(3000|8080)\b'
+```
+
+最终结果不应再出现 `0.0.0.0:3000` 或 `0.0.0.0:8080`。若反向代理位于另一台机器，则不能绑定本机回环地址，应绑定受控私网地址，并在安全组/防火墙中只允许反向代理来源。
+
+先在 DNS 服务商为两个域名创建指向服务器公网 IP 的 A 记录，并确认 `getent ahostsv4 files.example.com`、`getent ahostsv4 docs.example.com` 返回正确地址。云安全组只需对公网开放 80/443，3000/8080 不再对公网开放。
+
+安装 Nginx 和 Certbot。以下 standalone 方式会临时占用 80 端口，因此先停止 Nginx；执行前必须确认 DNS 已生效且公网 80 可访问：
+
+```bash
+sudo apt update
+sudo apt install -y nginx certbot
+sudo systemctl stop nginx
+sudo certbot certonly --standalone --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx" -d files.example.com
+sudo certbot certonly --standalone --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx" -d docs.example.com
+sudo certbot renew --dry-run
+```
+
+两次签发成功后，应存在 `/etc/letsencrypt/live/files.example.com/` 和 `/etc/letsencrypt/live/docs.example.com/`。如果签发失败，不要继续写引用这些文件的 Nginx 配置；先检查 DNS、80 端口和其他占用 80 的进程。
+
+将下面配置保存为 `/etc/nginx/sites-available/onlyoffice-demo`，创建到 `sites-enabled` 的链接后执行 `sudo nginx -t`。`map` 指令必须位于 Nginx 的 `http` 上下文；Ubuntu 的 `sites-enabled` 默认正是在该上下文中加载。
 
 ```nginx
 map $http_upgrade $connection_upgrade { default upgrade; '' close; }
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name files.example.com;
     ssl_certificate /etc/letsencrypt/live/files.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/files.example.com/privkey.pem;
@@ -85,7 +149,8 @@ server {
     }
 }
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name docs.example.com;
     ssl_certificate /etc/letsencrypt/live/docs.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/docs.example.com/privkey.pem;
@@ -103,7 +168,19 @@ server {
 }
 ```
 
-设置 `DOCUMENT_SERVER_PUBLIC_URL=https://docs.example.com`。两个浏览器可见 URL 必须同时 HTTPS，否则 mixed content 会阻止 API 或 iframe。应用没有登录鉴权，互联网暴露前必须接入认证反向代理、限流和审计。
+启用并重载：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/onlyoffice-demo /etc/nginx/sites-enabled/onlyoffice-demo
+sudo nginx -t
+sudo systemctl reload nginx
+curl -fsS https://files.example.com/health
+curl -fsS https://docs.example.com/healthcheck
+```
+
+如果链接已经存在，`ln -s` 会报 `File exists`；先用 `ls -l /etc/nginx/sites-enabled/onlyoffice-demo` 确认它指向正确文件，不要重复创建。
+
+在 `.env` 设置 `DOCUMENT_SERVER_PUBLIC_URL=https://docs.example.com`，然后执行 `docker compose up -d --force-recreate app` 并检查 `https://files.example.com/api/config` 返回的新地址。两个浏览器可见 URL 必须同时 HTTPS，否则 mixed content 会阻止 API 或 iframe。应用没有登录鉴权，互联网暴露前必须在 `files.example.com` 前接入认证、限流和审计。不要随意给 Docs 静态资源域名添加会阻断 iframe/API 请求的通用登录页面，应按所选认证网关验证完整编辑流程。仅增加 Nginx 配置但继续公开 3000/8080 会留下绕过 HTTPS 和认证代理的直连路径，不属于完成上线。
 
 ## 开机、备份、恢复与回滚
 
