@@ -65,3 +65,12 @@ docker compose down
 ```
 
 不要添加 `-v`，也不要删除 `storage`；否则可能删除文档或 ONLYOFFICE 数据。Linux IP 试运行也可以使用普通 `docker compose down` 停止同一 Compose 项目。
+
+## 接下来读什么
+
+- Windows 本地长期使用：[Windows 新手指南](windows-beginner-guide.md)
+- Ubuntu 服务器试运行：[Linux 新手指南](linux-beginner-guide.md)
+- 域名、HTTPS、备份与回滚：[Linux 高级部署](linux-deployment.md)
+- 遇到启动、编辑或保存问题：[故障排查](troubleshooting.md)
+
+[返回文档中心](README.md)

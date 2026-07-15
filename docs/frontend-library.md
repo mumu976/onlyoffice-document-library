@@ -107,3 +107,11 @@ Excel：
 ## 生命周期与 CSP
 
 组件卸载、切换文件或页面关闭时调用 `close()`，避免 iframe 和事件残留；wrapper 在重新 `open` 前会销毁旧实例。Helmet CSP 必须允许 Document Server origin 出现在 `script-src`、`frame-src`、`connect-src`。生产域名改为 HTTPS 后三处同步，且应用与 Docs 两个浏览器可见地址都必须 HTTPS，否则 mixed content 会阻止 `api.js` 或 iframe。JWT 密钥永远不进入浏览器。
+
+## 接下来读什么
+
+- 编辑配置、文件接口与保存回调：[后端安装与 REST API](backend-installation.md)
+- 方案边界和官方依据：[集成调研报告](research-report.md)
+- CSP、mixed content 或 callback 故障：[故障排查](troubleshooting.md)
+
+[返回文档中心](README.md)

@@ -325,3 +325,12 @@ Select-String -Path .env -Pattern '^DOCUMENT_SERVER_PUBLIC_URL='
 先确认关闭前已经看到同步提示，然后查看 app 和 document-server 日志。不要连续多次强制关闭浏览器。保存流程和 revision 规则见[后端安装文档](backend-installation.md)。
 
 如果仍无法判断，按“Docker Desktop → `docker version` → `docker compose ps` → 两个健康地址 → 对应服务日志 → 浏览器 Console/Network”的顺序收集结果，比反复重装更容易定位问题。
+
+## 接下来读什么
+
+- 想理解接口和保存流程：[后端安装与 REST API](backend-installation.md)
+- 想改造编辑器页面：[前端 JavaScript 库](frontend-library.md)
+- 准备迁移到服务器：[Linux 新手部署](linux-beginner-guide.md)
+- 需要按症状定位问题：[故障排查](troubleshooting.md)
+
+[返回文档中心](README.md)

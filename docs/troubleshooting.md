@@ -27,3 +27,13 @@ unset APP_JWT_HASH DOCS_JWT_HASH
 ```
 
 任一 `test` 返回非零都表示配置未满足要求；不要使用 `docker compose config` 检查密钥，因为其展开结果会把 `JWT_SECRET` 明文写到终端或日志。
+
+## 仍然无法定位时
+
+保留 `docker compose ps`、两个服务最近 150 行日志、浏览器 Console/Network 错误和复现步骤，再对照[本地演示与验收记录](demo-guide.md)逐项比较。不要在未备份时删除 volume 或 `storage` 试错。
+
+- 部署步骤本身不确定：[Windows 新手指南](windows-beginner-guide.md) / [Linux 新手指南](linux-beginner-guide.md)
+- 正式环境网络、HTTPS 或恢复问题：[Linux 高级部署](linux-deployment.md)
+- callback、revision 或 API 行为问题：[后端安装文档](backend-installation.md)
+
+[返回文档中心](README.md)

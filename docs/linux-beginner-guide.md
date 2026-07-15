@@ -312,3 +312,12 @@ cd /opt/onlyoffice-demo
 6. 准备恢复旧 Compose 文件和同一时间点数据的回滚步骤。
 
 完整、安全的命令已集中放在[高级部署手册的备份、恢复与回滚部分](linux-deployment.md)，不要从不同教程中拼接互不对应的备份和恢复命令。
+
+## 接下来读什么
+
+- 域名、HTTPS、认证边界与完整运维：[Linux 高级部署](linux-deployment.md)
+- 环境变量、REST API 与 callback：[后端安装文档](backend-installation.md)
+- 启动、编辑器或保存异常：[故障排查](troubleshooting.md)
+- 按证据完成 Word / Excel 验收：[本地演示记录](demo-guide.md)
+
+[返回文档中心](README.md)
