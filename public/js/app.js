@@ -1,8 +1,14 @@
 import { OnlyOfficeEditor } from "./onlyoffice-editor.js";
+import {
+  deriveLibraryView,
+  normalizeViewPreference,
+  recentFiles,
+} from "./library-view.js";
 
 const elements = {
   appStatus: document.querySelector("#app-status"),
   closeEditor: document.querySelector("#close-editor"),
+  dropZone: document.querySelector("#drop-zone"),
   editorShell: document.querySelector("#editor-shell"),
   editorStatus: document.querySelector("#editor-status"),
   fileCount: document.querySelector("#file-count"),
@@ -10,14 +16,24 @@ const elements = {
   healthStatus: document.querySelector("#health-status"),
   newExcel: document.querySelector("#new-excel"),
   newWord: document.querySelector("#new-word"),
+  recentFiles: document.querySelector("#recent-files"),
+  searchFiles: document.querySelector("#search-files"),
+  sortFiles: document.querySelector("#sort-files"),
+  typeFilter: document.querySelector("#type-filter"),
   uploadFile: document.querySelector("#upload-file"),
   uploadForm: document.querySelector("#upload-form"),
   uploadHelp: document.querySelector("#upload-help"),
+  uploadTrigger: document.querySelector("#upload-trigger"),
+  viewGrid: document.querySelector("#view-grid"),
+  viewList: document.querySelector("#view-list"),
 };
 
 let editor = null;
 let files = [];
 let selectedFile = null;
+let viewPreference = normalizeViewPreference(
+  window.localStorage.getItem("onlyoffice-library-view"),
+);
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -67,61 +83,127 @@ function typeLabel(extension) {
   return extension === "xlsx" ? "Excel 工作簿" : "Word 文档";
 }
 
-function actionButton(label, action, variant = "secondary") {
+function icon(path, alt = "") {
+  const image = document.createElement("img");
+  image.src = `/assets/icons/${path}`;
+  image.alt = alt;
+  return image;
+}
+
+function fileIcon(file) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "file-icon";
+  wrapper.dataset.type = file.extension;
+  wrapper.append(icon("file-text.svg"));
+  return wrapper;
+}
+
+function actionButton(label, action, iconName) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `button button--${variant} button--compact`;
+  button.className = "file-action";
   button.dataset.action = action;
-  button.textContent = label;
+  button.setAttribute("aria-label", `${label}文档`);
+  const text = document.createElement("span");
+  text.textContent = label;
+  button.append(icon(iconName), text);
   return button;
 }
 
-function tableCell(label, className, text) {
-  const cell = document.createElement("td");
-  cell.dataset.label = label;
-  cell.className = className;
-  cell.textContent = text;
-  return cell;
+function renderRecent() {
+  elements.recentFiles.replaceChildren();
+  for (const file of recentFiles(files, 4)) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "recent-card";
+    card.dataset.fileId = file.id;
+    card.dataset.action = "open";
+    card.setAttribute("role", "listitem");
+
+    const text = document.createElement("span");
+    text.className = "recent-card__text";
+    const name = document.createElement("strong");
+    name.textContent = file.name;
+    const updated = document.createElement("span");
+    updated.textContent = formatUpdatedAt(file.updatedAt);
+    text.append(name, updated);
+    card.append(fileIcon(file), text);
+    elements.recentFiles.append(card);
+  }
+}
+
+function emptyState(message) {
+  const state = document.createElement("div");
+  state.className = "empty-state";
+  const title = document.createElement("strong");
+  title.textContent = message;
+  const help = document.createElement("a");
+  help.href = "/guides/quick-start";
+  help.textContent = "查看快速开始指南";
+  state.append(title, help);
+  return state;
+}
+
+function renderLibrary() {
+  const visibleFiles = deriveLibraryView(files, {
+    query: elements.searchFiles.value ?? "",
+    type: elements.typeFilter.value || "all",
+    sort: elements.sortFiles.value || "newest",
+  });
+
+  elements.fileList.dataset.view = viewPreference;
+  elements.viewList.setAttribute("aria-pressed", String(viewPreference === "list"));
+  elements.viewGrid.setAttribute("aria-pressed", String(viewPreference === "grid"));
+  elements.fileList.replaceChildren();
+  elements.fileCount.textContent = visibleFiles.length === files.length
+    ? `${files.length} 个文档`
+    : `${visibleFiles.length} / ${files.length} 个文档`;
+
+  if (files.length === 0) {
+    elements.fileList.append(emptyState("还没有文档，可以新建或上传一个文件。"));
+    return;
+  }
+
+  if (visibleFiles.length === 0) {
+    elements.fileList.append(emptyState("没有找到匹配的文档，请调整搜索或筛选条件。"));
+    return;
+  }
+
+  for (const file of visibleFiles) {
+    const row = document.createElement("article");
+    row.className = "file-row";
+    row.dataset.fileId = file.id;
+    row.setAttribute("role", "listitem");
+
+    const primary = document.createElement("div");
+    primary.className = "file-primary";
+    const name = document.createElement("strong");
+    name.textContent = file.name;
+    primary.append(fileIcon(file), name);
+
+    const type = document.createElement("span");
+    type.className = "file-meta";
+    type.textContent = typeLabel(file.extension);
+    const updated = document.createElement("span");
+    updated.className = "file-meta";
+    updated.textContent = formatUpdatedAt(file.updatedAt);
+
+    const actions = document.createElement("div");
+    actions.className = "file-actions";
+    actions.append(
+      actionButton("打开", "open", "external-link.svg"),
+      actionButton("下载", "download", "download.svg"),
+      actionButton("删除", "delete", "trash-2.svg"),
+    );
+    row.append(primary, type, updated, actions);
+    elements.fileList.append(row);
+  }
 }
 
 function renderFiles(nextFiles) {
   files = nextFiles;
-  elements.fileList.replaceChildren();
-  elements.fileCount.textContent = `${files.length} 个文档`;
-
-  if (files.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 4;
-    cell.className = "empty-state";
-    cell.textContent = "还没有文档，可以新建或上传一个文件。";
-    row.append(cell);
-    elements.fileList.append(row);
-    return;
-  }
-
-  for (const file of files) {
-    const row = document.createElement("tr");
-    row.dataset.fileId = file.id;
-    row.append(
-      tableCell("名称", "file-name", file.name),
-      tableCell("类型", "file-type", typeLabel(file.extension)),
-      tableCell("更新时间", "file-updated", formatUpdatedAt(file.updatedAt)),
-    );
-
-    const actions = document.createElement("td");
-    actions.dataset.label = "操作";
-    const actionGroup = document.createElement("div");
-    actionGroup.className = "file-actions";
-    actionGroup.append(
-      actionButton("打开", "open", "primary"),
-      actionButton("下载", "download"),
-      actionButton("删除", "delete", "danger"),
-    );
-    actions.append(actionGroup);
-    row.append(actions);
-    elements.fileList.append(row);
-  }
+  renderRecent();
+  renderLibrary();
 }
 
 async function loadFiles() {
@@ -138,11 +220,7 @@ function configureEditor(documentServerUrl) {
   editor.addEventListener("ready", () => setEditorStatus("正在加载编辑器"));
   editor.addEventListener("document-ready", () => setEditorStatus("文档已打开"));
   editor.addEventListener("state-change", (event) => {
-    setEditorStatus(
-      event.detail.dirty
-        ? "存在尚未同步的修改"
-        : "修改已同步到编辑服务",
-    );
+    setEditorStatus(event.detail.dirty ? "存在尚未同步的修改" : "修改已同步到编辑服务");
   });
   editor.addEventListener("error", (event) => {
     const { code, description } = event.detail;
@@ -153,7 +231,6 @@ function configureEditor(documentServerUrl) {
 async function createFile(type, kindLabel) {
   const proposedName = window.prompt(`请输入${kindLabel}文件名（无需扩展名）`);
   if (proposedName === null) return;
-
   const name = proposedName.trim();
   if (name === "") {
     showStatus("文件名不能为空", "error");
@@ -173,9 +250,7 @@ async function createFile(type, kindLabel) {
   }
 }
 
-async function uploadFile(event) {
-  event.preventDefault();
-  const file = elements.uploadFile.files[0];
+async function uploadSelectedFile(file) {
   if (!file) {
     showStatus("请选择要上传的文件", "error");
     return;
@@ -183,9 +258,7 @@ async function uploadFile(event) {
 
   const formData = new FormData();
   formData.append("file", file);
-  const submitButton = elements.uploadForm.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
-
+  elements.uploadTrigger.disabled = true;
   try {
     await api("/api/files/upload", { method: "POST", body: formData });
     elements.uploadForm.reset();
@@ -194,7 +267,7 @@ async function uploadFile(event) {
   } catch (error) {
     showError(error);
   } finally {
-    submitButton.disabled = false;
+    elements.uploadTrigger.disabled = false;
   }
 }
 
@@ -203,9 +276,7 @@ async function openFile(file) {
   setEditorStatus("正在加载编辑器");
 
   try {
-    const editorConfig = await api(
-      `/api/files/${encodeURIComponent(file.id)}/editor-config`,
-    );
+    const editorConfig = await api(`/api/files/${encodeURIComponent(file.id)}/editor-config`);
     elements.editorShell.hidden = false;
     document.body.classList.add("editor-open");
     await editor.open(editorConfig);
@@ -229,9 +300,7 @@ async function pollForRevision(file) {
     await delay(1000);
     latestFiles = await api("/api/files");
     const current = latestFiles.find((candidate) => candidate.id === file.id);
-    if (current?.revision > file.revision) {
-      return { changed: true, latestFiles };
-    }
+    if (current?.revision > file.revision) return { changed: true, latestFiles };
   }
   return { changed: false, latestFiles };
 }
@@ -248,11 +317,7 @@ async function closeEditor() {
   try {
     const { changed, latestFiles } = await pollForRevision(closedFile);
     renderFiles(latestFiles);
-    if (changed) {
-      showStatus("已检测到新版本", "success");
-    } else {
-      showStatus("未检测到新版本；若未修改文档这是正常现象");
-    }
+    showStatus(changed ? "已检测到新版本" : "未检测到新版本；若未修改文档这是正常现象", changed ? "success" : "info");
   } catch (error) {
     showError(error);
   }
@@ -260,7 +325,6 @@ async function closeEditor() {
 
 async function deleteFile(file) {
   if (!window.confirm(`确定删除“${file.name}”吗？`)) return;
-
   await api(`/api/files/${encodeURIComponent(file.id)}`, { method: "DELETE" });
   await loadFiles();
   showStatus("文档已删除", "success");
@@ -268,8 +332,9 @@ async function deleteFile(file) {
 
 async function handleFileAction(event) {
   const button = event.target.closest("button[data-action]");
-  if (!button || !elements.fileList.contains(button)) return;
-
+  if (!button) return;
+  const allowedContainer = elements.fileList.contains(button) || elements.recentFiles.contains(button);
+  if (!allowedContainer) return;
   const row = button.closest("[data-file-id]");
   const file = files.find((candidate) => candidate.id === row?.dataset.fileId);
   if (!file) return;
@@ -290,12 +355,19 @@ async function handleFileAction(event) {
   }
 }
 
+function setView(nextView) {
+  viewPreference = normalizeViewPreference(nextView);
+  window.localStorage.setItem("onlyoffice-library-view", viewPreference);
+  renderLibrary();
+}
+
+function openFilePicker() {
+  elements.uploadFile.click();
+}
+
 async function initialize() {
   try {
-    const [config, initialFiles] = await Promise.all([
-      api("/api/config"),
-      api("/api/files"),
-    ]);
+    const [config, initialFiles] = await Promise.all([api("/api/config"), api("/api/files")]);
     configureEditor(config.documentServerUrl);
     renderFiles(initialFiles);
     elements.uploadHelp.textContent =
@@ -311,8 +383,37 @@ async function initialize() {
 
 elements.newWord.addEventListener("click", () => createFile("word", "Word"));
 elements.newExcel.addEventListener("click", () => createFile("spreadsheet", "Excel"));
-elements.uploadForm.addEventListener("submit", uploadFile);
+elements.uploadForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  uploadSelectedFile(elements.uploadFile.files[0]);
+});
+elements.uploadTrigger.addEventListener("click", openFilePicker);
+elements.uploadFile.addEventListener("change", () => uploadSelectedFile(elements.uploadFile.files[0]));
+elements.searchFiles.addEventListener("input", renderLibrary);
+elements.typeFilter.addEventListener("change", renderLibrary);
+elements.sortFiles.addEventListener("change", renderLibrary);
+elements.viewList.addEventListener("click", () => setView("list"));
+elements.viewGrid.addEventListener("click", () => setView("grid"));
 elements.fileList.addEventListener("click", handleFileAction);
+elements.recentFiles.addEventListener("click", handleFileAction);
 elements.closeEditor.addEventListener("click", closeEditor);
+elements.dropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  elements.dropZone.dataset.active = "true";
+});
+elements.dropZone.addEventListener("dragleave", () => {
+  elements.dropZone.dataset.active = "false";
+});
+elements.dropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  elements.dropZone.dataset.active = "false";
+  uploadSelectedFile(event.dataTransfer?.files?.[0]);
+});
+elements.dropZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openFilePicker();
+  }
+});
 
 initialize();

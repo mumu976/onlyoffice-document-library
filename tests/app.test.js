@@ -104,6 +104,7 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
   for (const selector of [
     "#app-status",
     "#close-editor",
+    "#drop-zone",
     "#editor-shell",
     "#editor-status",
     "#file-count",
@@ -111,9 +112,16 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
     "#health-status",
     "#new-excel",
     "#new-word",
+    "#recent-files",
+    "#search-files",
+    "#sort-files",
+    "#type-filter",
     "#upload-file",
     "#upload-form",
     "#upload-help",
+    "#upload-trigger",
+    "#view-grid",
+    "#view-list",
   ]) {
     elements.set(selector, new FakeElement());
   }
@@ -142,10 +150,19 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
       return elements.get(selector);
     },
   };
+  const storedValues = new Map();
   const windowObject = {
     CustomEvent,
     document: documentObject,
     location: { assign() {} },
+    localStorage: {
+      getItem(key) {
+        return storedValues.get(key) ?? null;
+      },
+      setItem(key, value) {
+        storedValues.set(key, String(value));
+      },
+    },
     confirm: () => true,
     prompt: () => null,
     setTimeout(callback) {
@@ -207,13 +224,29 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
     editorShell,
     fetchCalls,
     fileList: elements.get("#file-list"),
+    searchFiles: elements.get("#search-files"),
+    storedValues,
     get closeCalls() {
       return closeCalls;
     },
     openEvent: { target: openButton },
     order,
+    viewGrid: elements.get("#view-grid"),
   };
 }
+
+test("search and view controls update the visible library state", async (t) => {
+  const harness = await createHarness(t, {});
+
+  harness.searchFiles.value = "不存在";
+  await harness.searchFiles.emit("input");
+  assert.equal(harness.fileList.children.length, 1);
+  assert.match(harness.fileList.children[0].children[0].textContent, /没有找到/);
+
+  await harness.viewGrid.emit("click");
+  assert.equal(harness.fileList.dataset.view, "grid");
+  assert.equal(harness.storedValues.get("onlyoffice-library-view"), "grid");
+});
 
 test("editor config failure rolls back the open attempt without revision polling", async (t) => {
   const harness = await createHarness(t, { editorConfigFails: true });
