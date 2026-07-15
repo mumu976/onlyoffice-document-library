@@ -85,7 +85,11 @@ function jsonResponse(status, body) {
   };
 }
 
-async function createHarness(t, { editorConfigFails = false, editorOpenFails = false }) {
+async function createHarness(t, {
+  editorConfigFails = false,
+  editorOpenFails = false,
+  initialFiles = [file],
+}) {
   const originalGlobals = {
     document: globalThis.document,
     fetch: globalThis.fetch,
@@ -113,6 +117,7 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
     "#new-excel",
     "#new-word",
     "#recent-files",
+    "#recent-section",
     "#search-files",
     "#sort-files",
     "#type-filter",
@@ -185,7 +190,7 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
       });
     }
     if (path === "/api/files") {
-      return jsonResponse(200, { data: [file] });
+      return jsonResponse(200, { data: initialFiles });
     }
     if (path.endsWith("/editor-config")) {
       order.push("editor-config");
@@ -224,6 +229,7 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
     editorShell,
     fetchCalls,
     fileList: elements.get("#file-list"),
+    recentSection: elements.get("#recent-section"),
     searchFiles: elements.get("#search-files"),
     storedValues,
     get closeCalls() {
@@ -234,6 +240,12 @@ async function createHarness(t, { editorConfigFails = false, editorOpenFails = f
     viewGrid: elements.get("#view-grid"),
   };
 }
+
+test("an empty library hides the redundant recent documents section", async (t) => {
+  const harness = await createHarness(t, { initialFiles: [] });
+
+  assert.equal(harness.recentSection.hidden, true);
+});
 
 test("search and view controls update the visible library state", async (t) => {
   const harness = await createHarness(t, {});

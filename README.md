@@ -7,6 +7,11 @@
 
 [快速开始](docs/quick-start.md) · [Windows 新手指南](docs/windows-beginner-guide.md) · [Linux 部署指南](docs/linux-beginner-guide.md) · [文档目录](docs/README.md)
 
+[![CI](https://github.com/mumu976/onlyoffice-document-library/actions/workflows/ci.yml/badge.svg)](https://github.com/mumu976/onlyoffice-document-library/actions/workflows/ci.yml)
+![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-16784a)
+![ONLYOFFICE Docs 9.4.0.1](https://img.shields.io/badge/ONLYOFFICE_Docs-9.4.0.1-1769aa)
+![Docker Compose](https://img.shields.io/badge/Docker_Compose-supported-16784a)
+
 </div>
 
 > [!IMPORTANT]
@@ -162,3 +167,24 @@ templates/    Word、Excel 空白模板
 ## 项目状态与贡献
 
 当前目标是提供一套可理解、可验证、可继续开发的 ONLYOFFICE 集成基线。功能变化记录在 [CHANGELOG.md](CHANGELOG.md)，第三方图标许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。提交修改前请先运行 `npm run check`，并确保 Windows 或 Linux 指南中的命令仍与 Compose 配置一致。
+
+### 常见问题
+
+**为什么文件列表能打开，编辑器却是空白？**<br>
+浏览器需要同时访问应用地址和 `DOCUMENT_SERVER_PUBLIC_URL`。先检查 `http://localhost:8080/healthcheck`，再查看浏览器 Console 中的 CSP、mixed content 或 JWT 错误，详见[故障排查](docs/troubleshooting.md)。
+
+**可以直接部署到公网吗？**<br>
+不可以。当前项目没有登录和权限系统；正式环境必须使用 HTTPS、认证网关、访问控制和经过验证的备份恢复流程。
+
+**文档存在哪里？停止容器会丢失吗？**<br>
+文件正文和元数据保存在 `storage`，ONLYOFFICE 自身数据保存在 named volume。普通 `docker compose down` 会保留数据，`down -v` 或手动删除目录可能造成数据丢失。
+
+### 路线图
+
+- 当前：稳定 Word / Excel 文件闭环、中文文档中心、Windows/Linux 部署和安全基线。
+- 下一阶段候选：接入外部身份认证、细粒度权限、版本历史和对象存储；这些能力尚未在本项目中实现。
+- 所有新增功能都需要同时补充自动化测试、操作文档和实际验收证据。
+
+### 许可证说明
+
+仓库当前没有声明覆盖整个项目源码的开源许可证。在许可证文件加入前，请不要默认可以复制、修改或再分发项目源码。已单独声明的第三方图标仍按 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中对应许可证使用。

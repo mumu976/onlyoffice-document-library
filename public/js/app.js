@@ -17,6 +17,7 @@ const elements = {
   newExcel: document.querySelector("#new-excel"),
   newWord: document.querySelector("#new-word"),
   recentFiles: document.querySelector("#recent-files"),
+  recentSection: document.querySelector("#recent-section"),
   searchFiles: document.querySelector("#search-files"),
   sortFiles: document.querySelector("#sort-files"),
   typeFilter: document.querySelector("#type-filter"),
@@ -112,7 +113,9 @@ function actionButton(label, action, iconName) {
 
 function renderRecent() {
   elements.recentFiles.replaceChildren();
-  for (const file of recentFiles(files, 4)) {
+  const recent = recentFiles(files, 4);
+  elements.recentSection.hidden = recent.length === 0;
+  for (const file of recent) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "recent-card";
