@@ -944,7 +944,7 @@ git commit -m "docs: add onlyoffice deployment and integration guides"
 - Consumes: complete application, Compose stack and demo guide.
 - Produces: reproducible evidence for every milestone.
 
-- [ ] **Step 1: Run all automated checks from a clean install**
+- [x] **Step 1: Run all automated checks from a clean install**
 
 Run:
 
@@ -961,23 +961,23 @@ docker compose ps
 
 Expected: every test passes, coverage command exits 0, Compose validates, app image builds, and both services become healthy. Redirect the final successful test output and `docker compose ps` output to the two evidence text files without editing the command results.
 
-- [ ] **Step 2: Exercise Word lifecycle in the browser**
+- [x] **Step 2: Exercise Word lifecycle in the browser**
 
 Open `http://localhost:3000`, create `Word验收.docx`, enter a dated Chinese sentence, wait for `修改已同步到编辑服务`, close the editor, wait for callback completion, reopen and confirm the sentence remains. Download the file and open it in a local Office-compatible application. Capture `docs/evidence/word-editor.png` while the persisted sentence is visible.
 
-- [ ] **Step 3: Exercise Excel lifecycle in the browser**
+- [x] **Step 3: Exercise Excel lifecycle in the browser**
 
 Create `Excel验收.xlsx`, set `A1=10`, `A2=20`, `A3=SUM(A1:A2)`, verify `A3=30`, wait for synchronization, close, reopen and confirm all values/formula remain. Download and open locally. Capture `docs/evidence/excel-editor.png` while the persisted sheet is visible.
 
-- [ ] **Step 4: Exercise upload and delete**
+- [x] **Step 4: Exercise upload and delete**
 
 Upload the downloaded Word and Excel files, open both successfully, then close and delete the uploaded copies. Verify the API list no longer contains them and no corresponding UUID directories remain under `storage/`.
 
-- [ ] **Step 5: Record versions and update the checklist truthfully**
+- [x] **Step 5: Record versions and update the checklist truthfully**
 
 Record exact output from `node --version`, `npm.cmd --version`, `docker --version`, `docker compose version`, and `docker inspect --format '{{.Config.Image}}'` for both containers in `docs/evidence/versions.txt`. Change each `docs/demo-guide.md` checkbox to checked only when its evidence exists; if any check fails, leave it unchecked and add the exact command, timestamp and observed error below it.
 
-- [ ] **Step 6: Final regression and repository audit**
+- [x] **Step 6: Final regression and repository audit**
 
 Run:
 
@@ -990,7 +990,7 @@ rg -n "TB[D]|TO[D]O|待[补]充|稍后[补]充" README.md docs src public
 
 Expected: tests pass, both containers are healthy, only intended evidence/demo-guide changes are uncommitted, and the placeholder scan returns no matches.
 
-- [ ] **Step 7: Commit verified evidence**
+- [x] **Step 7: Commit verified evidence**
 
 ```bash
 git add docs/demo-guide.md docs/evidence
@@ -1001,15 +1001,15 @@ git commit -m "test: record onlyoffice word and excel demo"
 
 ## Final Acceptance Checklist
 
-- [ ] `npm test` passes from a clean `npm ci` install.
-- [ ] `docker compose config --quiet` passes.
-- [ ] `app` and `document-server` report healthy.
-- [ ] Word create/edit/save/reopen/download/delete succeeds.
-- [ ] Excel create/edit/formula/save/reopen/download/delete succeeds.
-- [ ] Uploaded `.docx` and `.xlsx` can be edited and saved.
-- [ ] Invalid type, oversized upload, invalid JWT and untrusted callback URL are rejected.
-- [ ] Linux deployment guide contains executable Ubuntu 22.04/24.04 commands, HTTPS proxy, backup and rollback.
-- [ ] Backend installation guide matches the actual environment variables and nine REST endpoints.
-- [ ] Frontend library guide documents every exported member and event.
-- [ ] Research report uses official sources and states the 2026-07-14 research date.
-- [ ] Evidence files contain actual outputs/screenshots and no invented success claims.
+- [x] `npm test` passes from a clean `npm ci` install.
+- [x] `docker compose config --quiet` passes.
+- [x] `app` and `document-server` report healthy.
+- [x] Word create/edit/save/reopen/download/delete succeeds.
+- [x] Excel create/edit/formula/save/reopen/download/delete succeeds.
+- [x] Uploaded `.docx` and `.xlsx` can be edited and saved.
+- [x] Invalid type, oversized upload, invalid JWT and untrusted callback URL are rejected.
+- [x] Linux deployment guide contains executable Ubuntu 22.04/24.04 commands, HTTPS proxy, backup and rollback.
+- [x] Backend installation guide matches the actual environment variables and nine REST endpoints.
+- [x] Frontend library guide documents every exported member and event.
+- [x] Research report uses official sources and states the 2026-07-14 research date.
+- [x] Evidence files contain actual outputs/screenshots and no invented success claims.
