@@ -3,12 +3,40 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="ONLYOFFICE 文档库的部署、接入与排错指南">
     <title>ONLYOFFICE 文档中心</title>
+    <link rel="stylesheet" href="/css/guides.css">
   </head>
   <body>
-    <main id="guide-app">
-      <h1>ONLYOFFICE 文档中心</h1>
-      <p>正在加载文档。</p>
-    </main>
+    <header class="docs-header">
+      <a class="docs-brand" href="/">ONLYOFFICE <span>文档中心</span></a>
+      <nav class="docs-global-nav" aria-label="全局导航">
+        <a aria-current="page" href="/guides">文档</a>
+        <a href="/">在线演示</a>
+        <a href="https://github.com/mumu976/onlyoffice-document-library">GitHub</a>
+      </nav>
+    </header>
+
+    <div class="docs-layout">
+      <aside class="docs-sidebar" aria-label="文档目录">
+        <label class="docs-search-label" for="guide-filter">筛选文档</label>
+        <input id="guide-filter" class="docs-search" type="search" placeholder="输入标题关键词">
+        <nav id="guide-navigation"></nav>
+      </aside>
+
+      <main class="docs-main">
+        <p id="guide-breadcrumb" class="docs-breadcrumb">文档</p>
+        <p id="guide-status" class="docs-status" role="status" aria-live="polite">正在加载文档</p>
+        <article id="guide-article" class="guide-article" hidden></article>
+        <nav id="guide-pagination" class="guide-pagination" aria-label="上一篇和下一篇" hidden></nav>
+      </main>
+
+      <aside class="docs-outline" aria-label="本页目录">
+        <p>本页目录</p>
+        <nav id="guide-outline"></nav>
+      </aside>
+    </div>
+
+    <script type="module" src="/js/guides.js"></script>
   </body>
 </html>
