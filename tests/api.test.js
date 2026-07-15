@@ -7,6 +7,7 @@ import { EventEmitter } from "node:events";
 import { connect, createServer as createNetServer } from "node:net";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { AppError } from "../src/errors.js";
 import { startServer } from "../src/server.js";
 import { FileRepository } from "../src/repositories/file-repository.js";
 import { ActiveFileRegistry } from "../src/services/active-file-registry.js";
@@ -142,6 +143,32 @@ async function createFixture(t, overrides = {}) {
       return { error: 0 };
     },
   };
+  const guideList = [
+    {
+      slug: "quick-start",
+      title: "快速开始",
+      group: "新手入门",
+      summary: "五分钟运行演示",
+    },
+  ];
+  const guide = {
+    ...guideList[0],
+    html: '<h1 id="section-1">快速开始</h1>',
+    outline: [{ id: "section-1", level: 1, text: "快速开始" }],
+    previous: null,
+    next: null,
+  };
+  const guideService = {
+    list() {
+      return guideList;
+    },
+    async get(slug) {
+      if (slug !== guide.slug) {
+        throw new AppError("GUIDE_NOT_FOUND", "文档不存在", 404);
+      }
+      return guide;
+    },
+  };
   const logs = { info: [], error: [] };
   const logger = {
     info(entry) {
@@ -161,6 +188,7 @@ async function createFixture(t, overrides = {}) {
     editorConfigService,
     activeFiles,
     callbackService,
+    guideService,
     logger,
     ...overrides,
   };
@@ -173,6 +201,33 @@ async function createFixture(t, overrides = {}) {
     logs,
   };
 }
+
+test("serves the guide catalog, guide detail, and documentation shell", async (t) => {
+  const { app } = await createFixture(t);
+
+  const catalog = await request(app).get("/api/guides").expect(200);
+  assert.deepEqual(catalog.body.data, [
+    {
+      slug: "quick-start",
+      title: "快速开始",
+      group: "新手入门",
+      summary: "五分钟运行演示",
+    },
+  ]);
+
+  const guide = await request(app).get("/api/guides/quick-start").expect(200);
+  assert.equal(guide.body.data.slug, "quick-start");
+  assert.match(guide.body.data.html, /section-1/);
+
+  await request(app).get("/api/guides/not-real").expect(404, {
+    error: { code: "GUIDE_NOT_FOUND", message: "文档不存在" },
+  });
+
+  await request(app)
+    .get("/guides/linux-beginner")
+    .expect("Content-Type", /html/)
+    .expect(200);
+});
 
 test("exposes health, public config, and the complete file CRUD API", async (t) => {
   const { app } = await createFixture(t);

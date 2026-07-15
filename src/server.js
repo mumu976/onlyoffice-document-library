@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -6,6 +7,7 @@ import { FileRepository } from "./repositories/file-repository.js";
 import { ActiveFileRegistry } from "./services/active-file-registry.js";
 import { CallbackService } from "./services/callback-service.js";
 import { EditorConfigService } from "./services/editor-config-service.js";
+import { createGuideService } from "./services/guide-service.js";
 import { KeyedMutex } from "./services/keyed-mutex.js";
 import { ReadinessService } from "./services/readiness-service.js";
 
@@ -64,6 +66,9 @@ export async function startServer({
     maxFileBytes: config.maxFileBytes,
     logger,
   });
+  const guideService = createGuideService({
+    docsDir: path.resolve(cwd, "docs"),
+  });
 
   await repository.init();
   const readinessService = new ReadinessService({
@@ -76,6 +81,7 @@ export async function startServer({
     editorConfigService,
     activeFiles,
     callbackService,
+    guideService,
     readinessService,
     logger,
   });

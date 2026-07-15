@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { AppError } from "./errors.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createFilesRouter } from "./routes/files.js";
+import { createGuidesRouter } from "./routes/guides.js";
 import { createOnlyOfficeRouter } from "./routes/onlyoffice.js";
 
 const publicDirectory = fileURLToPath(new URL("../public/", import.meta.url));
@@ -38,6 +39,7 @@ export function createApp({
   editorConfigService,
   activeFiles,
   callbackService,
+  guideService,
   readinessService = { async check() {} },
   logger = console,
 }) {
@@ -60,6 +62,9 @@ export function createApp({
     }),
   );
   app.use(express.static(path.resolve(publicDirectory)));
+  app.get(/^\/guides(?:\/[^/]+)?\/?$/, (_request, response) => {
+    response.sendFile(path.join(publicDirectory, "guides.html"));
+  });
 
   const livenessHandler = (_request, response) => {
     response.json({ data: { status: "ok" } });
@@ -98,6 +103,7 @@ export function createApp({
     "/api/onlyoffice",
     createOnlyOfficeRouter({ callbackService }),
   );
+  app.use("/api/guides", createGuidesRouter({ guideService }));
   app.use("/api", (_request, _response, next) => {
     next(new AppError("API_NOT_FOUND", "接口不存在", 404));
   });

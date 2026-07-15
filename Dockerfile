@@ -9,6 +9,7 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY public ./public
+COPY docs ./docs
 COPY templates ./templates
 
 RUN mkdir -p /app/storage && chown node:node /app/storage
