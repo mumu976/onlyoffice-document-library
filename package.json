@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "express": "5.2.1",
-    "helmet": "8.2.0",
+    "helmet": "8.3.0",
     "jsonwebtoken": "9.0.3",
     "markdown-it": "14.3.0",
     "multer": "2.2.0",
