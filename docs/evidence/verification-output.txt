@@ -1,0 +1,376 @@
+﻿### npm ci
+
+added 120 packages in 6s
+
+32 packages are looking for funding
+  run `npm fund` for details
+exit_code=0
+
+### npm run templates
+
+> onlyoffice-document-library-demo@1.0.0 templates
+> node scripts/generate-templates.mjs
+
+exit_code=0
+
+### npm test
+
+> onlyoffice-document-library-demo@1.0.0 test
+> node --test --test-reporter=spec
+
+✔ exposes health, public config, and the complete file CRUD API (355.3943ms)
+✔ serves the document library page and editor wrapper (21.8966ms)
+✔ uploads only the multipart field named file (17.859ms)
+✔ rejects a multipart file under any field other than file (11.8384ms)
+✔ requires one uploaded file (9.7076ms)
+✔ rejects unsupported upload extensions before OOXML parsing (10.8127ms)
+✔ requires MIME to match the uploaded extension (11.3824ms)
+✔ uses OOXML structure as the authoritative check after MIME validation (9.9363ms)
+✔ accepts octet-stream only when OOXML validation succeeds (12.9809ms)
+✔ rejects invalid create types with the repository AppError envelope (9.3383ms)
+✔ rejects uploads larger than 20 MiB before OOXML parsing (49.4381ms)
+✔ returns a stable not-found envelope for unknown file IDs (10.672ms)
+✔ does not delete a file while it is active (14.9353ms)
+✔ forwards callback body, file ID, and Authorization and always responds 200 (9.7626ms)
+✔ classifies malformed JSON separately from application errors (10.1073ms)
+✔ maps unknown API paths to the stable API error envelope (9.2642ms)
+✔ hides unknown error details and logs only safe request fields (9.583ms)
+✔ applies CSP for the Document Server origin and emits safe request logs (9.5989ms)
+✔ closes the HTTP server when the registered process receives SIGTERM (20.1673ms)
+✔ waits for repository initialization before listening (9.3909ms)
+✔ removes startup-only server error listeners after listening (8.8389ms)
+✔ editor config failure rolls back the open attempt without revision polling (23.213ms)
+✔ editor open failure shows the shell only after config and fully rolls back (4.6513ms)
+✔ status 1 marks the file active without fetching (3.8143ms)
+✔ status 4 marks the file inactive (0.5452ms)
+✔ status 2 downloads from the trusted origin, replaces content, then marks inactive (16.7175ms)
+✔ rewrites a trusted public callback URL to the internal Document Server (0.7271ms)
+✔ status 6 saves content while keeping the file active (0.5915ms)
+▶ missing or invalid tokens fail closed without writing
+  ✔ missing token (0.2154ms)
+  ✔ invalid token (0.1381ms)
+✔ missing or invalid tokens fail closed without writing (0.6505ms)
+▶ handle resolves with error 1 when its request argument is missing
+  ✔ no argument (0.2249ms)
+  ✔ undefined (0.3828ms)
+  ✔ null (0.2761ms)
+✔ handle resolves with error 1 when its request argument is missing (1.3293ms)
+▶ logs only a fixed status shape for unverified string and object values
+  ✔ string (0.209ms)
+  ✔ object (0.0852ms)
+✔ logs only a fixed status shape for unverified string and object values (0.5291ms)
+▶ signed status, key, and URL must exactly match the callback body
+  ✔ status (0.3759ms)
+  ✔ key (0.234ms)
+  ✔ url (0.2158ms)
+✔ signed status, key, and URL must exactly match the callback body (1.0719ms)
+✔ rejects a key that does not belong to the callback file (0.2859ms)
+✔ rejects an untrusted download origin without fetching or leaking its query (0.318ms)
+✔ rejects a streamed body over maxFileBytes without replacing content (0.6315ms)
+✔ rejects a non-2xx download response without replacing content (0.4074ms)
+✔ rejects an oversized Content-Length without reading or replacing content (0.4576ms)
+✔ serializes two status 6 saves for the same file through the keyed mutex (1.6076ms)
+✔ loadConfig normalizes defaults, paths and URLs (0.9067ms)
+✔ loadConfig rejects a short JWT secret (1.1274ms)
+✔ loadConfig rejects invalid positive integers and URL protocols (0.1795ms)
+✔ loadConfig rejects URL query strings and fragments with Chinese errors (0.2327ms)
+✔ loadConfig removes trailing slashes only from URL pathnames (0.1171ms)
+✔ loadConfig reports malformed URLs in Chinese (0.1634ms)
+✔ builds a complete signed Word editor config (3.6692ms)
+✔ uses the spreadsheet document type for Excel files (0.3172ms)
+✔ tracks active file IDs synchronously (0.113ms)
+✔ serializes functions that use the same mutex key (0.2169ms)
+✔ allows functions with different mutex keys to overlap (0.2262ms)
+✔ continues a mutex key after a function rejects (0.3777ms)
+✔ supports the complete create, read, replace, list, and remove lifecycle (73.7636ms)
+✔ uploads a validated document using its normalized original name (13.8141ms)
+✔ rejects malformed IDs before any filesystem path is used (10.5839ms)
+✔ reports inconsistent metadata and content as corrupt storage (16.0697ms)
+✔ lists valid repository entries newest first and ignores other entries (19.7687ms)
+✔ rejects metadata timestamps that are not canonical ISO 8601 (12.1076ms)
+✔ cleans a newly-created directory after persistence fails (8.8724ms)
+✔ does not delete an existing UUID directory when creation collides (10.5553ms)
+✔ rolls back old content when metadata commit fails after content install (44.4076ms)
+✔ cleans owned prewrites when a synced handle fails to close (26.9653ms)
+✔ preserves the commit error when rollback fails and leaves startup recovery (41.5088ms)
+✔ does not delete an existing transaction when prewrite collides (18.697ms)
+✔ init restores an interrupted replacement with old metadata and backup (25.9053ms)
+✔ init discards synced prewrites left before marker installation (22.849ms)
+✔ init aborts a marked replacement before old content moves (23.7833ms)
+✔ init restores backup when old content moved before next install (23.2267ms)
+✔ init finalizes a committed replacement that still has backup and marker (33.8572ms)
+✔ init rejects an interrupted replacement with no trustworthy backup (30.7777ms)
+✔ get rejects content whose hash does not match metadata (18.9781ms)
+✔ loadOnlyOfficeApi normalizes the Document Server script URL (1.7644ms)
+✔ concurrent loads of the same script URL share one Promise (0.2667ms)
+✔ a failed script load reports the stable error and can be retried (0.7846ms)
+✔ open creates an editor and ready events expose the wrapper lifecycle (0.8485ms)
+✔ state and error wrapper events have exact normalized details (0.2804ms)
+✔ backend event handlers run before their corresponding wrapper events (0.2833ms)
+✔ opening again closes the old instance and close is idempotent (0.1558ms)
+✔ overlapping opens create only the latest editor without leaking an instance (0.2175ms)
+✔ close cancels an open that is still waiting for the API loader (0.1565ms)
+✔ a cancelled open resolves normally if its loader later rejects (0.1808ms)
+✔ close during DocEditor construction destroys the newly stale instance (0.2082ms)
+✔ a reentrant open during construction destroys only the stale instance (0.2201ms)
+✔ recognizes supported extensions case-insensitively (1.1204ms)
+✔ normalizes a display name without changing its intended extension (0.2335ms)
+✔ accepts generated Word and Excel templates (6.354ms)
+✔ rejects a renamed non-OOXML buffer (0.6848ms)
+✔ rejects invalid uncompressed byte limit undefined (0.6223ms)
+✔ rejects invalid uncompressed byte limit NaN (0.6007ms)
+✔ rejects invalid uncompressed byte limit Infinity (0.4759ms)
+✔ rejects invalid uncompressed byte limit 0 (0.4991ms)
+✔ rejects invalid uncompressed byte limit -1 (0.6502ms)
+✔ rejects an archive whose expanded size exceeds a valid limit (1.1196ms)
+✔ preserves the unsupported file type error before ZIP parsing (0.2192ms)
+ℹ tests 102
+ℹ suites 0
+ℹ pass 102
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3897.8984
+exit_code=0
+
+### npm run test:coverage
+
+> onlyoffice-document-library-demo@1.0.0 test:coverage
+> node --test --experimental-test-coverage
+
+✔ exposes health, public config, and the complete file CRUD API (93.4124ms)
+✔ serves the document library page and editor wrapper (25.4399ms)
+✔ uploads only the multipart field named file (21.5019ms)
+✔ rejects a multipart file under any field other than file (15.6278ms)
+✔ requires one uploaded file (15.3719ms)
+✔ rejects unsupported upload extensions before OOXML parsing (13.2599ms)
+✔ requires MIME to match the uploaded extension (13.686ms)
+✔ uses OOXML structure as the authoritative check after MIME validation (13.3507ms)
+✔ accepts octet-stream only when OOXML validation succeeds (14.5823ms)
+✔ rejects invalid create types with the repository AppError envelope (11.2732ms)
+✔ rejects uploads larger than 20 MiB before OOXML parsing (57.0295ms)
+✔ returns a stable not-found envelope for unknown file IDs (12.1387ms)
+✔ does not delete a file while it is active (15.2491ms)
+✔ forwards callback body, file ID, and Authorization and always responds 200 (10.1458ms)
+✔ classifies malformed JSON separately from application errors (10.7457ms)
+✔ maps unknown API paths to the stable API error envelope (11.5543ms)
+✔ hides unknown error details and logs only safe request fields (10.913ms)
+✔ applies CSP for the Document Server origin and emits safe request logs (10.1113ms)
+✔ closes the HTTP server when the registered process receives SIGTERM (21.7372ms)
+✔ waits for repository initialization before listening (10.698ms)
+✔ removes startup-only server error listeners after listening (9.0314ms)
+✔ editor config failure rolls back the open attempt without revision polling (23.5548ms)
+✔ editor open failure shows the shell only after config and fully rolls back (4.6762ms)
+✔ status 1 marks the file active without fetching (4.3956ms)
+✔ status 4 marks the file inactive (0.5402ms)
+✔ status 2 downloads from the trusted origin, replaces content, then marks inactive (19.5622ms)
+✔ rewrites a trusted public callback URL to the internal Document Server (0.7739ms)
+✔ status 6 saves content while keeping the file active (0.6052ms)
+▶ missing or invalid tokens fail closed without writing
+  ✔ missing token (0.2466ms)
+  ✔ invalid token (0.1381ms)
+✔ missing or invalid tokens fail closed without writing (0.7173ms)
+▶ handle resolves with error 1 when its request argument is missing
+  ✔ no argument (0.2267ms)
+  ✔ undefined (0.1499ms)
+  ✔ null (0.1422ms)
+✔ handle resolves with error 1 when its request argument is missing (0.8106ms)
+▶ logs only a fixed status shape for unverified string and object values
+  ✔ string (0.1602ms)
+  ✔ object (0.0742ms)
+✔ logs only a fixed status shape for unverified string and object values (0.452ms)
+▶ signed status, key, and URL must exactly match the callback body
+  ✔ status (0.3227ms)
+  ✔ key (0.2073ms)
+  ✔ url (0.1703ms)
+✔ signed status, key, and URL must exactly match the callback body (0.9604ms)
+✔ rejects a key that does not belong to the callback file (0.2571ms)
+✔ rejects an untrusted download origin without fetching or leaking its query (0.3314ms)
+✔ rejects a streamed body over maxFileBytes without replacing content (0.6733ms)
+✔ rejects a non-2xx download response without replacing content (1.4768ms)
+✔ rejects an oversized Content-Length without reading or replacing content (0.5893ms)
+✔ serializes two status 6 saves for the same file through the keyed mutex (1.0185ms)
+✔ loadConfig normalizes defaults, paths and URLs (1.2318ms)
+✔ loadConfig rejects a short JWT secret (0.738ms)
+✔ loadConfig rejects invalid positive integers and URL protocols (0.3301ms)
+✔ loadConfig rejects URL query strings and fragments with Chinese errors (0.4853ms)
+✔ loadConfig removes trailing slashes only from URL pathnames (0.2007ms)
+✔ loadConfig reports malformed URLs in Chinese (0.3091ms)
+✔ builds a complete signed Word editor config (4.5763ms)
+✔ uses the spreadsheet document type for Excel files (0.4269ms)
+✔ tracks active file IDs synchronously (0.1234ms)
+✔ serializes functions that use the same mutex key (0.2488ms)
+✔ allows functions with different mutex keys to overlap (0.3451ms)
+✔ continues a mutex key after a function rejects (0.554ms)
+✔ supports the complete create, read, replace, list, and remove lifecycle (93.7071ms)
+✔ uploads a validated document using its normalized original name (14.9458ms)
+✔ rejects malformed IDs before any filesystem path is used (7.5731ms)
+✔ reports inconsistent metadata and content as corrupt storage (14.3655ms)
+✔ lists valid repository entries newest first and ignores other entries (17.4144ms)
+✔ rejects metadata timestamps that are not canonical ISO 8601 (12.9573ms)
+✔ cleans a newly-created directory after persistence fails (9.6484ms)
+✔ does not delete an existing UUID directory when creation collides (8.7622ms)
+✔ rolls back old content when metadata commit fails after content install (65.5681ms)
+✔ cleans owned prewrites when a synced handle fails to close (30.0863ms)
+✔ preserves the commit error when rollback fails and leaves startup recovery (42.4766ms)
+✔ does not delete an existing transaction when prewrite collides (20.6622ms)
+✔ init restores an interrupted replacement with old metadata and backup (26.7932ms)
+✔ init discards synced prewrites left before marker installation (24.9008ms)
+✔ init aborts a marked replacement before old content moves (22.5346ms)
+✔ init restores backup when old content moved before next install (25.5045ms)
+✔ init finalizes a committed replacement that still has backup and marker (29.5166ms)
+✔ init rejects an interrupted replacement with no trustworthy backup (22.286ms)
+✔ get rejects content whose hash does not match metadata (20.2583ms)
+✔ loadOnlyOfficeApi normalizes the Document Server script URL (1.0233ms)
+✔ concurrent loads of the same script URL share one Promise (0.1653ms)
+✔ a failed script load reports the stable error and can be retried (0.993ms)
+✔ open creates an editor and ready events expose the wrapper lifecycle (1.6846ms)
+✔ state and error wrapper events have exact normalized details (0.3161ms)
+✔ backend event handlers run before their corresponding wrapper events (0.4725ms)
+✔ opening again closes the old instance and close is idempotent (0.2393ms)
+✔ overlapping opens create only the latest editor without leaking an instance (0.4279ms)
+✔ close cancels an open that is still waiting for the API loader (0.2738ms)
+✔ a cancelled open resolves normally if its loader later rejects (0.2734ms)
+✔ close during DocEditor construction destroys the newly stale instance (1.1637ms)
+✔ a reentrant open during construction destroys only the stale instance (0.3076ms)
+✔ recognizes supported extensions case-insensitively (1.8814ms)
+✔ normalizes a display name without changing its intended extension (0.3751ms)
+✔ accepts generated Word and Excel templates (7.5471ms)
+✔ rejects a renamed non-OOXML buffer (0.6863ms)
+✔ rejects invalid uncompressed byte limit undefined (0.9168ms)
+✔ rejects invalid uncompressed byte limit NaN (0.7073ms)
+✔ rejects invalid uncompressed byte limit Infinity (1.0297ms)
+✔ rejects invalid uncompressed byte limit 0 (0.5723ms)
+✔ rejects invalid uncompressed byte limit -1 (0.584ms)
+✔ rejects an archive whose expanded size exceeds a valid limit (1.7627ms)
+✔ preserves the unsupported file type error before ZIP parsing (0.1791ms)
+ℹ tests 102
+ℹ suites 0
+ℹ pass 102
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 988.524
+ℹ start of coverage report
+ℹ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ file                       | line % | branch % | funcs % | uncovered lines
+ℹ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ public                     |        |          |         | 
+ℹ  js                        |        |          |         | 
+ℹ   app.js                   |  63.21 |    57.14 |   56.67 | 29-32 93-101 127-131 141-145 148-149 153-174 176-199 222-224 226-237 241-255 257-258 261-267 278-280 287 307-309
+ℹ   onlyoffice-editor.js     |  97.96 |    94.29 |  100.00 | 28 81-82
+ℹ src                        |        |          |         | 
+ℹ  app.js                    |  97.87 |    90.91 |  100.00 | 28-29
+ℹ  config.js                 | 100.00 |   100.00 |  100.00 | 
+ℹ  errors.js                 | 100.00 |   100.00 |  100.00 | 
+ℹ  middleware                |        |          |         | 
+ℹ   error-handler.js         |  96.49 |    81.25 |  100.00 | 27-28
+ℹ  repositories              |        |          |         | 
+ℹ   file-repository.js       |  93.57 |    81.75 |  100.00 | 45-46 54-55 103-104 109 118-119 176-177 208-209 268-269 283-285 327-328 351-353 363-364 370-371 409-410
+ℹ  routes                    |        |          |         | 
+ℹ   files.js                 | 100.00 |    83.33 |   90.00 | 
+ℹ   onlyoffice.js            | 100.00 |   100.00 |  100.00 | 
+ℹ  server.js                 |  90.48 |    81.25 |   83.33 | 19-20 93 109-110 120-126
+ℹ  services                  |        |          |         | 
+ℹ   active-file-registry.js  | 100.00 |   100.00 |  100.00 | 
+ℹ   callback-service.js      |  98.51 |    93.33 |  100.00 | 131-132
+ℹ   editor-config-service.js | 100.00 |   100.00 |  100.00 | 
+ℹ   keyed-mutex.js           | 100.00 |   100.00 |   66.67 | 
+ℹ   ooxml.js                 |  96.33 |    87.50 |  100.00 | 53-54 72-73
+ℹ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ all files                  |  85.83 |    82.37 |   82.86 | 
+ℹ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ℹ end of coverage report
+exit_code=0
+
+### docker compose config --quiet
+exit_code=0
+
+### docker compose build --no-cache app
+ Image onlyoffice-document-library-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 667B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 321B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:24-alpine
+#3 DONE 0.1s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 141B done
+#4 DONE 0.0s
+
+#5 [1/8] FROM docker.io/library/node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
+#5 resolve docker.io/library/node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd 0.0s done
+#5 DONE 0.0s
+
+#6 [2/8] WORKDIR /app
+#6 CACHED
+
+#7 [internal] load build context
+#7 transferring context: 6.08kB done
+#7 DONE 0.0s
+
+#8 [3/8] COPY package*.json ./
+#8 DONE 0.1s
+
+#9 [4/8] RUN npm ci --omit=dev
+#9 14.54 
+#9 14.54 added 98 packages, and audited 99 packages in 14s
+#9 14.54 
+#9 14.54 28 packages are looking for funding
+#9 14.54   run `npm fund` for details
+#9 14.54 
+#9 14.54 found 0 vulnerabilities
+#9 14.54 npm notice
+#9 14.54 npm notice New major version of npm available! 11.16.0 -> 12.0.1
+#9 14.54 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
+#9 14.54 npm notice To update run: npm install -g npm@12.0.1
+#9 14.54 npm notice
+#9 DONE 14.6s
+
+#10 [5/8] COPY src ./src
+#10 DONE 0.1s
+
+#11 [6/8] COPY public ./public
+#11 DONE 0.1s
+
+#12 [7/8] COPY templates ./templates
+#12 DONE 0.1s
+
+#13 [8/8] RUN mkdir -p /app/storage && chown node:node /app/storage
+#13 DONE 0.2s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 0.7s done
+#14 exporting manifest sha256:31e9c1a8c0d4674e8ab91377bc12313eeb71dd659485805934430b31a5106a74 0.0s done
+#14 exporting config sha256:9e4584480cdd660ba8bf869a84dc7139c38100d3c207abcbc2768adba30621ec 0.0s done
+#14 exporting attestation manifest sha256:ac063fc119b153b7f8362320aba61bb4110bd33159db6b7632d618c7ec480c69 0.1s done
+#14 exporting manifest list sha256:136c1873edbe7313fd5350bbecb8660d1f3e9d25595d1353f672431db71b7982
+#14 exporting manifest list sha256:136c1873edbe7313fd5350bbecb8660d1f3e9d25595d1353f672431db71b7982 0.0s done
+#14 naming to docker.io/library/onlyoffice-document-library-app:latest done
+#14 unpacking to docker.io/library/onlyoffice-document-library-app:latest
+#14 unpacking to docker.io/library/onlyoffice-document-library-app:latest 0.4s done
+#14 DONE 1.3s
+
+#15 resolving provenance for metadata file
+#15 DONE 0.0s
+ Image onlyoffice-document-library-app Built 
+exit_code=0
+
+### docker compose up -d
+ Container onlyoffice-document-library-document-server-1 Running 
+ Container onlyoffice-document-library-app-1 Recreate 
+ Container onlyoffice-document-library-app-1 Recreated 
+ Container onlyoffice-document-library-document-server-1 Waiting 
+ Container onlyoffice-document-library-document-server-1 Healthy 
+ Container onlyoffice-document-library-app-1 Starting 
+ Container onlyoffice-document-library-app-1 Started 
+exit_code=0
+

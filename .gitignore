@@ -1,2 +1,8 @@
-.worktrees/
+node_modules/
+.env
+storage/
+coverage/
+*.log
 .superpowers/
+.worktrees/
+.playwright-cli/

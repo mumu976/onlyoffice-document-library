@@ -1,0 +1,11 @@
+.git
+.superpowers
+.worktrees
+node_modules
+storage
+.env
+docs/superpowers
+tests
+screenshots
+logs
+*.log

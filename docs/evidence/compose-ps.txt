@@ -1,0 +1,3 @@
+﻿NAME                                            IMAGE                               COMMAND                  SERVICE           CREATED             STATUS                       PORTS
+onlyoffice-document-library-app-1               onlyoffice-document-library-app     "docker-entrypoint.s…"   app               12 seconds ago      Up 11 seconds (healthy)      0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+onlyoffice-document-library-document-server-1   onlyoffice/documentserver:9.4.0.1   "/app/ds/run-documen…"   document-server   About an hour ago   Up About an hour (healthy)   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
